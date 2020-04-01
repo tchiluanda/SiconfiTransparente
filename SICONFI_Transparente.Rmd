@@ -12,10 +12,15 @@ library(shiny)
 library(rsiconfi)
 library(networkD3)
 library(purrr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(viridis)
+library(stringr)
 
-df_account<- get_account_dca(2018,"I-E",11)
+df_account<- get_account_dca(2018,"I-E",1)
 
-
+load("param_siconfi.RData")
 
 ```
 
@@ -78,7 +83,7 @@ Inputs {.sidebar}
 
 ```{r}
 # shiny inputs defined here
-library(dplyr)
+
 
 selectInput("municipio","Município",choices = municipios_IBGE$nome_municipio, selected = "São Paulo")
 selectInput("uf","UF",choices = sort((municipios_IBGE%>%filter(!is.na(cod_uf))%>%distinct(uf))$uf), selected = "SP")
@@ -333,7 +338,7 @@ Inputs {.sidebar}
 
 ```{r}
 # shiny inputs defined here
-library(dplyr)
+
 
 selectInput("municipio_desp","Município",choices = municipios_IBGE$nome_municipio, selected = "São Paulo")
 selectInput("uf_desp","UF",choices = sort((municipios_IBGE%>%filter(!is.na(cod_uf))%>%distinct(uf))$uf), selected = "SP")
@@ -504,7 +509,7 @@ links<-
 ```
 
  
-### Composição despesas Estado
+### Composição despesas UF
     
 ```{r}
 #Criar gráfico de sankey
@@ -597,20 +602,20 @@ Inputs {.sidebar}
 
 ```{r}
 # shiny inputs defined here
-library(dplyr)
+
 
 
 selectInput("municipio_func","Município",choices = municipios_IBGE$nome_municipio, multiple = TRUE, selected = "São Paulo")
 selectInput("uf_func","UF",choices = sort((municipios_IBGE%>%filter(!is.na(cod_uf))%>%distinct(uf))$uf), multiple = TRUE, selected = "SP")
 selectInput("ano_func","Ano",choices = c("2018":"2014"), selected = "2018")
 
-selectInput("funcao","Função",choices = df_account$conta, selected = "10 - Saúde")
+selectInput("funcao","Função",choices = df_account$conta, selected = "10 - Saúde", multiple = TRUE)
 
 ```
 
 
 
-Column
+Column {data-width=400}
 -----------------------------------------------------------------------
 
 ### Descubra para onde vai o gasto governamental
@@ -627,31 +632,118 @@ Column
 Column {.tabset}
 -----------------------------------------------------------------------
 
-   
-### Comparação de despesa por função até 4 estados
+### Despesa/função Gov.Federal
 
 ```{r}
-#Criar gráfico com facet
-library(ggplot2)
-library(viridis)
+
+
 
 renderPlot({
-  
-  
+
+
   print(df_account)
   funcao<-
     (df_account %>%
     filter(conta %in% input$funcao) %>%
     select(cod_interno))$cod_interno
   
-   cod_uf<- 
+  df_func_gf <- rsiconfi::get_dca(input$ano_func,"I-E","1",arg_cod_conta = funcao)
+
+  df_func_gf %>%
+    filter(coluna == "Despesas Liquidadas") %>%
+    ggplot(aes(x=conta, y= valor/populacao, fill= instituicao)) +
+    geom_col() +
+    scale_fill_viridis(discrete=TRUE) +
+    theme_light() +
+    theme(
+      strip.text =  element_blank(),
+      axis.text.x =  element_text(angle = 90, hjust = 1),
+      panel.grid = element_blank()  )+
+    labs(
+      y = "Valor gasto por habitante",
+      x=  NULL,
+      fill = ""  )+
+     scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+     facet_grid(instituicao~.,  space = "free_y") +
+    coord_flip()
+
+
+})
+
+```   
+
+
+
+### Despesa/função até 4 municípios
+
+
+```{r}
+#Criar gráfico com facet
+
+renderPlot({
+
+
+  print(df_account)
+  funcao<-
+    (df_account %>%
+    filter(conta %in% input$funcao) %>%
+    select(cod_interno))$cod_interno
+  
+   cod_mun<- 
+   (municipios_IBGE%>%
+   filter(nome_municipio %in% input$municipio_func) %>%
+   select(cod_mun))$cod_mun
+
+
+  df_func_mun <- rsiconfi::get_dca(input$ano_func,"I-E",cod_mun,arg_cod_conta = funcao)
+
+  df_func_mun %>%
+    filter(coluna == "Despesas Liquidadas") %>%
+    ggplot(aes(x=conta, y= valor/populacao, fill= instituicao)) +
+    geom_col() +
+    scale_fill_viridis(discrete=TRUE) +
+    theme_light() +
+    theme(
+      strip.text =  element_blank(),
+      axis.text.x =  element_text(angle = 90, hjust = 1),
+      panel.grid = element_blank()  )+
+    labs(
+      y = "Valor gasto por habitante",
+      x=  NULL,
+      fill = "UFs"  )+
+     scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+     facet_grid(instituicao~.,  space = "free_y") +
+    coord_flip()
+
+
+})
+
+```   
+
+
+   
+### Despesa/função até 4 UFs
+
+```{r}
+#Criar gráfico com facet
+
+renderPlot({
+
+
+  print(df_account)
+  funcao<-
+    (df_account %>%
+    filter(conta %in% input$funcao) %>%
+    select(cod_interno))$cod_interno
+
+   cod_uf<-
    (municipios_IBGE%>%
    filter(uf== input$uf_func) %>%
    distinct(cod_uf))$cod_uf
 
-  
+
   df_func_uf <- rsiconfi::get_dca(input$ano_func,"I-E",cod_uf,arg_cod_conta = funcao)
-  
+
   df_func_uf %>%
     filter(coluna == "Despesas Liquidadas") %>%
     ggplot(aes(x=conta, y= valor/populacao, fill= instituicao)) +
@@ -669,19 +761,14 @@ renderPlot({
      scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
      facet_grid(instituicao~.,  space = "free_y") +
     coord_flip()
-    
-    
-  
-  
+
+
+
+
 })
 
 ```   
  
-### Comparação de despesa por função até 4 municípios
-
-```{r}
-#Criar gráfico com facet
-```   
 
 
 ### Amostra do DCA
@@ -699,8 +786,25 @@ renderPlot({
 Restos a pagar
 =====================================  
 
+Inputs {.sidebar}
+-------------------------------------
 
-Column
+```{r}
+# shiny inputs defined here
+
+
+
+selectInput("municipio_rap","Município",choices = municipios_IBGE$nome_municipio, multiple = TRUE, selected = "São Paulo")
+selectInput("uf_rap","UF",choices = sort((municipios_IBGE%>%filter(!is.na(cod_uf))%>%distinct(uf))$uf), multiple = TRUE, selected = "SP")
+selectInput("ano_rap","Ano",choices = c("2018":"2014"), selected = "2018")
+selectInput("funcao_rap","Função",choices = df_account$conta, selected = "10 - Saúde", multiple = TRUE)
+#selectInput("tipo_rap","Tipo de RAP",choices = c("2018":"2014"), selected = "2018", multiple = TRUE, selected= "Restos a Pagar Processados Pagos")
+
+```
+
+
+
+Column {data-width=400}
 -----------------------------------------------------------------------
 
 ### Entenda as contas que ficam para o próximo ano
@@ -716,19 +820,189 @@ Column
 Column {.tabset}
 -----------------------------------------------------------------------
 
-   
-### Comparação de RAP por função até 4 estados
+### RAP/função Gov. Federal
 
 ```{r}
-#Criar gráfico com facet
+
+renderPlot({
+
+
+  print(df_account)
+  funcao<-
+    (df_account %>%
+    filter(conta %in% input$funcao_rap) %>%
+    select(cod_interno))$cod_interno
+  
+  df_rap_gf <- rsiconfi::get_dca(input$ano_rap,"I-G","1")
+  
+  df_rap_gf%>%
+    filter(coluna != "Restos a Pagar Não Processados Liquidados") %>%
+    filter(cod_interno %in% funcao) %>%
+    select(instituicao, coluna,cod_interno, conta,valor) %>%
+    spread(key= coluna, value = valor, fill = 0) %>%
+    mutate(`valor inscrito` = `Restos a Pagar Não Processados Inscritos em Exercícios Anteriores`+
+                            `Restos a Pagar Não Processados Inscritos em 31 de Dezembro do Exercício Anterior`+
+                            `Restos a Pagar Processados Inscritos em Exercícios Anteriores`+
+                            `Restos a Pagar Processados Inscritos em 31 de Dezembro do Exercício Anterior`,
+           `valor pago` = `Restos a Pagar Não Processados Pagos`+
+                        `Restos a Pagar Processados Pagos`,
+           `valor cancelado`= `Restos a Pagar Não Processados Cancelados`+
+                            `Restos a Pagar Processados Cancelados`,
+           `valor não pago`=  `valor inscrito` -  `valor pago` - `valor cancelado`) %>%
+    gather(key = "status", value = "valor", -c(1:3)) %>%
+    filter(status %in% c( "valor pago","valor cancelado", "valor não pago" )) %>%
+    ggplot(aes(x=conta, y= valor/10^6, fill = status)) +
+    geom_col()  +
+    scale_fill_viridis(discrete=TRUE) +
+    theme_light() +
+    theme(
+      strip.text =  element_blank(),
+      axis.text.x =  element_text(angle = 90, hjust = 1),
+      panel.grid = element_blank()  )+
+    labs(
+      y = "Valor em R$(milhão)",
+      x=  NULL,
+      fill = ""  )+
+     #scale_x_log10(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+     scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+     facet_grid(instituicao~.,  space = "free_y") +
+    coord_flip()
+
+
+})
+
+
+
 ```   
  
-### Comparação de RAP por função até 4 municípios
+### RAP/função até 4 municípios
 
 ```{r}
 #Criar gráfico com facet
+renderPlot({
+
+
+  
+  funcao<-
+    (df_account %>%
+    filter(conta %in% input$funcao_rap) %>%
+    select(cod_interno))$cod_interno
+  
+   cod_mun<- 
+   (municipios_IBGE%>%
+   filter(nome_municipio %in% input$municipio_rap) %>%
+   select(cod_mun))$cod_mun
+   
+   #cod_mun <- "3550308"
+   #df_rap_mun <- rsiconfi::get_dca(2018,"I-G",cod_mun)
+
+  df_rap_mun <- rsiconfi::get_dca(input$ano_rap,"I-G",cod_mun)
+  
+  #unique(df_rap_mun$coluna)
+
+  df_rap_mun%>%
+    filter(coluna != "Restos a Pagar Não Processados Liquidados") %>%
+    filter(cod_interno %in% funcao) %>%
+    select(instituicao, coluna,cod_interno, conta,valor) %>%
+    spread(key= coluna, value = valor, fill = 0) %>%
+    mutate(`valor inscrito` = `Restos a Pagar Não Processados Inscritos em Exercícios Anteriores`+
+                            `Restos a Pagar Não Processados Inscritos em 31 de Dezembro do Exercício Anterior`+
+                            `Restos a Pagar Processados Inscritos em Exercícios Anteriores`+
+                            `Restos a Pagar Processados Inscritos em 31 de Dezembro do Exercício Anterior`,
+           `valor pago` = `Restos a Pagar Não Processados Pagos`+
+                        `Restos a Pagar Processados Pagos`,
+           `valor cancelado`= `Restos a Pagar Não Processados Cancelados`+
+                            `Restos a Pagar Processados Cancelados`,
+           `valor não pago`=  `valor inscrito` -  `valor pago` - `valor cancelado`) %>%
+    gather(key = "status", value = "valor", -c(1:3)) %>%
+    filter(status %in% c( "valor pago","valor cancelado", "valor não pago" )) %>%
+    ggplot(aes(x=conta, y= valor/10^6, fill = status)) +
+    geom_col()  +
+    scale_fill_viridis(discrete=TRUE) +
+    theme_light() +
+    theme(
+      #strip.text =  element_blank(),
+      axis.text.x =  element_text(angle = 90, hjust = 1),
+      panel.grid = element_blank()  )+
+    labs(
+      y = "Valor em R$(milhão)",
+      x=  NULL,
+      fill = ""  )+
+     #scale_x_log10(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+     scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+     facet_grid(str_sub(instituicao,25,str_length(instituicao))~.,  space = "free_y") +
+    coord_flip()
+
+
+})
+
 ```   
 
+
+
+### RAP/função até 4 estados
+
+```{r}
+#Criar gráfico com facet
+renderPlot({
+
+
+  
+  funcao<-
+    (df_account %>%
+    filter(conta %in% input$funcao_rap) %>%
+    select(cod_interno))$cod_interno
+  
+   cod_uf<-
+   (municipios_IBGE%>%
+   filter(uf== input$uf_rap) %>%
+   distinct(cod_uf))$cod_uf
+   
+   #cod_mun <- "3550308"
+   #df_rap_mun <- rsiconfi::get_dca(2018,"I-G",11)
+
+  df_rap_uf <- rsiconfi::get_dca(input$ano_rap,"I-G",cod_uf)
+  
+  #unique(df_rap_mun$coluna)
+
+  df_rap_uf%>%
+    filter(coluna != "Restos a Pagar Não Processados Liquidados") %>%
+    filter(cod_interno %in% funcao) %>%
+    select(instituicao, coluna,cod_interno, conta,valor) %>%
+    spread(key= coluna, value = valor, fill = 0) %>%
+    mutate(`valor inscrito` = `Restos a Pagar Não Processados Inscritos em Exercícios Anteriores`+
+                            `Restos a Pagar Não Processados Inscritos em 31 de Dezembro do Exercício Anterior`+
+                            `Restos a Pagar Processados Inscritos em Exercícios Anteriores`+
+                            `Restos a Pagar Processados Inscritos em 31 de Dezembro do Exercício Anterior`,
+           `valor pago` = `Restos a Pagar Não Processados Pagos`+
+                        `Restos a Pagar Processados Pagos`,
+           `valor cancelado`= `Restos a Pagar Não Processados Cancelados`+
+                            `Restos a Pagar Processados Cancelados`,
+           `valor não pago`=  `valor inscrito` -  `valor pago` - `valor cancelado`) %>%
+    gather(key = "status", value = "valor", -c(1:3)) %>%
+    filter(status %in% c( "valor pago","valor cancelado", "valor não pago" )) %>%
+    ggplot(aes(x=conta, y= valor/10^6, fill = status)) +
+    geom_col()  +
+    scale_fill_viridis(discrete=TRUE) +
+    theme_light() +
+    theme(
+      #strip.text =  element_blank(),
+      axis.text.x =  element_text(angle = 90, hjust = 1),
+      panel.grid = element_blank()  )+
+    labs(
+      y = "Valor em R$(milhão)",
+      x=  NULL,
+      fill = ""  )+
+     #scale_x_log10(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+     scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+     facet_grid(str_sub(instituicao,22,str_length(instituicao))~.,  space = "free_y") +
+    coord_flip()
+
+
+})
+
+```   
+ 
 
 ### Amostra do DCA
     
@@ -746,7 +1020,7 @@ Limites controlados pela LRF
 =====================================  
 
 
-Column
+Column  {data-width=400}
 -----------------------------------------------------------------------
 
 ### Acompanhe o que a LRF controla
@@ -767,6 +1041,8 @@ Column {.tabset}
 
 ```{r}
 #Criar gráfico com facet
+
+
 ```   
 
 
