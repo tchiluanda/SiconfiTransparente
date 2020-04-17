@@ -1,0 +1,160 @@
+---
+title: "Interface com RSiconfi"
+output: 
+  flexdashboard::flex_dashboard:
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(rsiconfi)
+library(networkD3)
+library(ggplot2)
+library(viridis)
+library(readr)
+library(dplyr)
+
+state_machine<-1
+
+glossario_siconfi <- read_delim("glossario_siconfi.csv", 
+     ";", escape_double = FALSE, trim_ws = TRUE)
+
+
+text_header_chart<- function(chart, estado){
+  
+  text_header<- data.frame(l=1,c=1)
+  text_header[1,1]<- "Apresentação"
+  text_header[2,1]<- "Exemplo de análise do relatório selecionado"
+  text_header[3,1]<- "Exemplo de dados do relatório selecionado"
+  
+  text_header[chart,estado]
+}
+
+text_chart<- function(chart, estado, linha){
+  
+  text_line<- data.frame(l=1,c=1)
+  if (chart==1){
+    
+    text_line[1,1]<- "Bemvindo. A partir daqui você terá a possibilidade de construir dinamicamente consulta que consumirá dados do SICONFI" 
+    text_line[1,2]<-"Logo ao lado esquerdo você vê um menu que oferece as opções dos principais tipos de relatórios possíveis"
+    text_line[1,3]<-"Ao selecionar uma das opções de relatórios será exibido ao lado direito um exemplo de análise dos dados associados à opção, na primeira aba, bem como os dados que geraram essa análise, na segunda aba"
+
+  }
+  
+  text_line[estado,linha]
+
+}
+
+
+```
+
+Inputs {.sidebar}
+-------------------------------------
+
+```{r}
+radioButtons("topico",label = "Escolha o tipo de consulta", choices = (glossario_siconfi%>%
+    select(topico))$topico)
+```
+
+
+Column {data-width=200}
+-----------------------------------------------------------------------
+
+### `r text_header_chart(1,state_machine)`
+
+`r text_chart(1,state_machine, 1)`
+`r HTML("</BR>")`
+`r text_chart(1,state_machine,2)`
+`r HTML("</BR>")`
+`r text_chart(1,state_machine,3)`
+
+```{r}
+renderText({
+  (glossario_siconfi%>%
+    filter(topico==input$topico) %>%
+    select(explicacao))$explicacao
+  
+})
+```
+
+
+
+Column {.tabset .tabset-fade}
+-----------------------------------------------------------------------
+
+### `r text_header_chart(2,state_machine)`
+
+```{r}
+
+
+renderSankeyNetwork({
+  
+#Criar gráfico de sankey
+df_rec <<- rsiconfi::get_dca(2018,"I-C","1")
+
+
+df_rec_trabalho<-
+df_rec %>% 
+  #filter(stringr::str_starts(cod_conta,"R")) %>%
+  filter(coluna == "Receitas Brutas Realizadas") %>%
+  mutate(nivel_0 = cod_conta =="TotalReceitas" ) %>%
+  mutate(nivel_1= (stringr::str_ends(cod_conta,".0.0.0.00.0.0"))) %>%
+  mutate(nivel_2= ((stringr::str_sub(cod_conta,5,5)!= "0") & (stringr::str_ends(cod_conta,"0.0.00.0.0")))) %>%
+  mutate(nivel_3= ((stringr::str_sub(cod_conta,7,7)!= "0") & (stringr::str_ends(cod_conta,"0.00.0.0")))) %>%
+  filter(nivel_0 | nivel_1 | nivel_2 | nivel_3) %>%
+  mutate(pai = case_when(
+    nivel_1 ~ "TotalReceitas",
+    nivel_2 ~ paste0(stringr::str_sub(cod_conta,1,3), ".0.0.0.00.0.0"),
+    nivel_3 ~ paste0(stringr::str_sub(cod_conta,1,5), ".0.0.00.0.0")
+  )) %>%
+  mutate (source = row_number() -1)
+    
+
+v_pai <- 
+  df_rec_trabalho %>%
+  mutate(pai = ifelse(is.na(pai),cod_conta,pai))
+  
+
+pos_pai<-  
+map_int(v_pai$pai, function(a_pai){
+  print(a_pai)
+  which(df_rec_trabalho$cod_conta==a_pai)
+  
+})
+
+
+pos_pai<- pos_pai -1
+
+df_rec_trabalho$destination <- pos_pai
+
+nodes<- df_rec_trabalho %>%
+  mutate(conta= ifelse(cod_conta == "TotalReceitas","Total de Receitas Brutas", stringr::str_sub(conta, 18,str_length(conta)))) %>%
+  select(conta)
+  
+
+links<- 
+  df_rec_trabalho %>%
+  filter(!is.na(pai)) %>%
+  select(source,
+         destination,
+         valor)
+
+    
+ sankeyNetwork(Links = links, Nodes = nodes, Source = "source",
+               Target = "destination", Value = "valor", NodeID = "conta",
+               units = "", fontSize = 12, nodeWidth = 30)
+})
+
+
+```
+
+### `r text_header_chart(3,state_machine)`
+
+```{r}
+renderDataTable({
+  df_rec
+})
+```
+
