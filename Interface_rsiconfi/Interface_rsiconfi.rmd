@@ -15,37 +15,164 @@ library(ggplot2)
 library(viridis)
 library(readr)
 library(dplyr)
+library(shinyjs)
+library(kableExtra)
 
-state_machine<-1
+
+
+#state_machine<<-1
 
 glossario_siconfi <- read_delim("glossario_siconfi.csv", 
      ";", escape_double = FALSE, trim_ws = TRUE)
 
+instrucoes <- read_delim("instrucoes.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
 
-text_header_chart<- function(chart, estado){
+
+
+
+generate_graph<- function(chart, estado, opcao){
+
+  #print("generate gráfico")
+  #print(estado)
+  #print(opcao)
+
   
-  text_header<- data.frame(l=1,c=1)
-  text_header[1,1]<- "Apresentação"
-  text_header[2,1]<- "Exemplo de análise do relatório selecionado"
-  text_header[3,1]<- "Exemplo de dados do relatório selecionado"
-  
-  text_header[chart,estado]
+  ####################Corrigir considerando o novo significado do estado e do estado 3. Primeiro tem que resolver a #perioricidade e em seguida o ano. 
+  if(chart==1){
+    if(estado %in% c(1,2)){ #relatórios iniciais
+      #print("if(estado == 1 | estado==2)")
+      if (opcao[[1]]==1){#Receitas orçamentárias
+        #print("if (opcao[[1]]==1)")
+
+        print(opcao[[2]])
+        #df_rec <- rsiconfi::get_dca(c(2015,2018),"I-C","1")
+        df_rec <- rsiconfi::get_dca(opcao[[2]],"I-C","1")
+
+
+
+        df_rec_trabalho<-
+          df_rec %>%
+          #filter(stringr::str_starts(cod_conta,"R")) %>%
+          filter(coluna == "Receitas Brutas Realizadas") %>%
+          mutate(nivel_0 = cod_conta =="TotalReceitas" ) %>%
+          mutate(nivel_1= (stringr::str_ends(cod_conta,".0.0.0.00.0.0"))) %>%
+          mutate(nivel_2= ((stringr::str_sub(cod_conta,5,5)!= "0") & (stringr::str_ends(cod_conta,"0.0.00.0.0")))) %>%
+          mutate(nivel_3= ((stringr::str_sub(cod_conta,7,7)!= "0") & (stringr::str_ends(cod_conta,"0.00.0.0")))) %>%
+          filter(nivel_0 | nivel_1 | nivel_2 | nivel_3) %>%
+          mutate(pai = case_when(
+            nivel_1 ~ "TotalReceitas",
+            nivel_2 ~ paste0(stringr::str_sub(cod_conta,1,3), ".0.0.0.00.0.0"),
+            nivel_3 ~ paste0(stringr::str_sub(cod_conta,1,5), ".0.0.00.0.0")
+          )) %>%
+          mutate (source = row_number() -1)
+
+        #unique(df_rec_trabalho$exercicio)
+
+        graph<-
+          df_rec_trabalho%>%
+          filter(nivel_2==1)%>%
+          mutate(conta =  stringr::str_sub(conta, 18,str_length(conta)),
+                 exercicio = as.character(exercicio))%>%
+          select(conta, valor, exercicio) %>%
+          mutate(conta = reorder(conta, valor)) %>%
+          ggplot(aes(x=conta, y= valor/10^6)) +
+          geom_col(fill= "#fdd500") + #
+          theme_light() +
+          theme(
+            #strip.text =  element_blank(),
+            axis.text.x =  element_text(angle = 90, hjust = 1),
+            panel.grid = element_blank()  )+
+          labs(
+            y = "Valor em R$ milhões",
+            x=  NULL,
+            fill = ""  )+
+          scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+          facet_wrap(factor(exercicio)~.) +
+          #facet_grid(unique(conta)+exercicio~., scales =   "free_y")+
+          coord_flip()
+
+        return(graph)
+
+
+      }
+
+      if (opcao[[1]]==2){ #Despesas orçamntárias
+        #Criar gráfico de sankey
+        df_desp <- rsiconfi::get_dca(opcao[[2]],"I-D","1")
+        #df_desp <- rsiconfi::get_dca(c(2017,2018),"I-D","1")
+
+
+        df_desp_trabalho<-
+          df_desp %>%
+          #filter(stringr::str_starts(cod_conta,"R")) %>%
+          filter(coluna == "Despesas Liquidadas") %>%
+          mutate(nivel_0 = cod_conta =="TotalDespesas" ) %>%
+          mutate(nivel_1= (stringr::str_ends(cod_conta,"0.00.00.00.00"))) %>%
+          mutate(nivel_2= ((stringr::str_sub(cod_conta,5,5)!= "0") & (stringr::str_ends(cod_conta,"00.00.00.00")))) %>%
+          mutate(nivel_3= ((stringr::str_sub(cod_conta,7,8)!= "00") & (stringr::str_ends(cod_conta,"00.00.00")))) %>%
+          filter(nivel_0 | nivel_1 | nivel_2 | nivel_3  ) %>% #
+          mutate(pai = case_when(
+            nivel_1 ~ "TotalDespesas",
+            nivel_2 ~ paste0(stringr::str_sub(cod_conta,1,3), ".0.00.00.00.00"),
+            nivel_3 ~ paste0(stringr::str_sub(cod_conta,1,5), ".00.00.00.00")
+          )) %>%
+          filter(str_sub(cod_conta,1,2)!="DI")%>%
+          mutate (source = row_number() -1)%>% 
+          mutate(conta= case_when(
+    cod_conta == "TotalDespesas" ~ "Total de despesas liquidadas",
+    exercicio == "2018" ~ stringr::str_sub(conta, 16,str_length(conta)),
+    exercicio < "2018" ~  stringr::str_sub(conta, 19,str_length(conta))
+  ))
+
+        graph<-
+          df_desp_trabalho%>%
+          filter(nivel_2==1)%>%
+          mutate( exercicio = as.character(exercicio))%>%
+          select(conta, valor,exercicio) %>%
+          mutate(conta = reorder(conta, valor)) %>%
+          ggplot(aes(x=conta, y= valor/10^6)) +
+          geom_col(fill= "#329c2d") +
+          theme_light() +
+          theme(
+            #strip.text =  element_blank(),
+            axis.text.x =  element_text(angle = 90, hjust = 1),
+            panel.grid = element_blank()  )+
+          labs(
+            y = "Valor em R$ milhões",
+            x=  NULL,
+            fill = ""  )+
+          scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+          facet_wrap(factor(exercicio)~.) +
+          coord_flip()
+
+        return(graph)
+
+      }
+
+    }
+  }
+
 }
 
-text_chart<- function(chart, estado, linha){
-  
-  text_line<- data.frame(l=1,c=1)
-  if (chart==1){
+generate_dt <- function(dt,estado, opcao){
+  if (dt==1){
     
-    text_line[1,1]<- "Bemvindo. A partir daqui você terá a possibilidade de construir dinamicamente consulta que consumirá dados do SICONFI" 
-    text_line[1,2]<-"Logo ao lado esquerdo você vê um menu que oferece as opções dos principais tipos de relatórios possíveis"
-    text_line[1,3]<-"Ao selecionar uma das opções de relatórios será exibido ao lado direito um exemplo de análise dos dados associados à opção, na primeira aba, bem como os dados que geraram essa análise, na segunda aba"
+      if (opcao[[1]] ==1){
+        df_rec <- rsiconfi::get_dca(opcao[[2]],"I-C","1")
+        return(df_rec)
+      }
+
+      if (opcao[[1]] ==2){
+        df_desp <- rsiconfi::get_dca(opcao[[2]],"I-D","1")
+        return(df_desp)
+      }
+
 
   }
-  
-  text_line[estado,linha]
 
 }
+
 
 
 ```
@@ -54,107 +181,225 @@ Inputs {.sidebar}
 -------------------------------------
 
 ```{r}
-radioButtons("topico",label = "Escolha o tipo de consulta", choices = (glossario_siconfi%>%
-    select(topico))$topico)
+radioButtons("topico",label = "Escolha o tipo de consulta", choices = unique(glossario_siconfi%>%
+  select(topico))$topico, selected = (glossario_siconfi%>%
+  select(topico))$topico[1])
+
+useShinyjs(rmd = TRUE)
+
+hidden(
+         div(id = "ano", selectInput("ano", label ="Informe o ano", choices = 2019:2014, selected = 2018, multiple = TRUE)))
+
+hidden(
+  div(id = "periodicidade", radioButtons("periodicidade", label ="Informe a periodicidade", choices = c("Bimestral","Quadrimestral","Semestral", "Anual"), selected = "Anual"))
+  
+         )
+
+hidden( div(id = "finalizar",actionButton("finalizar", "Finalizar")))
+
+hidden(
+         div(id = "estado", textInput("estado", "estado", value = "1", width = NULL,
+   placeholder = NULL)))
+
+
+
+
+
+
 ```
+
+```{r}
+actionButton("proximo", "Próximo")
+observeEvent(input$proximo, {
+  
+  if (input$estado==1){#Apresentação
+    
+     print(input$estado)    
+     opcao_rel<<- input$topico    
+     shinyjs::toggle(id = "topico", anim = TRUE)
+     shinyjs::toggle(id = "periodicidade", anim = TRUE)
+     updateTextInput(session,"estado", value = "2")
+
+  }
+  
+  if (input$estado==2){#periodicidade
+    
+     print(input$estado)    
+     opcao_rel<<- input$topico    
+     shinyjs::toggle(id = "ano", anim = TRUE)
+     shinyjs::toggle(id = "periodicidade", anim = TRUE)
+     updateTextInput(session,"estado", value = "3")
+
+  }
+  
+  
+})
+
+
+```
+
 
 
 Column {data-width=200}
 -----------------------------------------------------------------------
 
-### `r text_header_chart(1,state_machine)`
+### Instruções
 
-`r text_chart(1,state_machine, 1)`
-`r HTML("</BR>")`
-`r text_chart(1,state_machine,2)`
-`r HTML("</BR>")`
-`r text_chart(1,state_machine,3)`
 
 ```{r}
-renderText({
-  (glossario_siconfi%>%
-    filter(topico==input$topico) %>%
-    select(explicacao))$explicacao
+shiny::renderUI({
   
+
+  instrucoes_trabalho<- 
+    instrucoes%>%
+    filter(estado==input$estado)%>%
+  select(instrucoes)
+    
+
+
+    HTML(
+        
+        kable(instrucoes_trabalho, col.names = "")
+    )
 })
+
 ```
 
+
+### Sobre a sua escolha
+
+```{r}
+shiny::renderUI({
+  
+
+  print(input$topico)
+  glossario_trabalho<- 
+    glossario_siconfi%>%
+    filter(topico==input$topico) %>%
+    select(explicacao)
+    
+
+
+    HTML(
+        
+        kable(glossario_trabalho, col.names = "")
+    )
+})
+
+
+
+```
 
 
 Column {.tabset .tabset-fade}
 -----------------------------------------------------------------------
 
-### `r text_header_chart(2,state_machine)`
+### Gráfico com dados da seleção
 
 ```{r}
 
 
-renderSankeyNetwork({
-  
-#Criar gráfico de sankey
-df_rec <<- rsiconfi::get_dca(2018,"I-C","1")
+renderPlot({
 
 
-df_rec_trabalho<-
-df_rec %>% 
-  #filter(stringr::str_starts(cod_conta,"R")) %>%
-  filter(coluna == "Receitas Brutas Realizadas") %>%
-  mutate(nivel_0 = cod_conta =="TotalReceitas" ) %>%
-  mutate(nivel_1= (stringr::str_ends(cod_conta,".0.0.0.00.0.0"))) %>%
-  mutate(nivel_2= ((stringr::str_sub(cod_conta,5,5)!= "0") & (stringr::str_ends(cod_conta,"0.0.00.0.0")))) %>%
-  mutate(nivel_3= ((stringr::str_sub(cod_conta,7,7)!= "0") & (stringr::str_ends(cod_conta,"0.00.0.0")))) %>%
-  filter(nivel_0 | nivel_1 | nivel_2 | nivel_3) %>%
-  mutate(pai = case_when(
-    nivel_1 ~ "TotalReceitas",
-    nivel_2 ~ paste0(stringr::str_sub(cod_conta,1,3), ".0.0.0.00.0.0"),
-    nivel_3 ~ paste0(stringr::str_sub(cod_conta,1,5), ".0.0.00.0.0")
-  )) %>%
-  mutate (source = row_number() -1)
+  if (input$estado==3 && input$periodicidade=="Anual"){
+    shinyjs::show("finalizar")
+    shinyjs::hide("proximo")
+    updateSelectInput("ano", label ="Informe o ano", choices = 2018:2014, selected = 2018, multiple = TRUE)
     
+  }  
+  if (input$estado==1){#Apreentação
 
-v_pai <- 
-  df_rec_trabalho %>%
-  mutate(pai = ifelse(is.na(pai),cod_conta,pai))
+    id_topico<<-
+      (glossario_siconfi%>%
+         filter(topico==input$topico)%>%
+         select(id))$id
+
+    id_opcao<- list(id_topico, input$ano)
+  }
+  
   
 
-pos_pai<-  
-map_int(v_pai$pai, function(a_pai){
-  print(a_pai)
-  which(df_rec_trabalho$cod_conta==a_pai)
-  
-})
-
-
-pos_pai<- pos_pai -1
-
-df_rec_trabalho$destination <- pos_pai
-
-nodes<- df_rec_trabalho %>%
-  mutate(conta= ifelse(cod_conta == "TotalReceitas","Total de Receitas Brutas", stringr::str_sub(conta, 18,str_length(conta)))) %>%
-  select(conta)
-  
-
-links<- 
-  df_rec_trabalho %>%
-  filter(!is.na(pai)) %>%
-  select(source,
-         destination,
-         valor)
-
+  if (input$estado %in% c(2,3)){#Seleção de periodicidade, ou ano
     
- sankeyNetwork(Links = links, Nodes = nodes, Source = "source",
-               Target = "destination", Value = "valor", NodeID = "conta",
-               units = "", fontSize = 12, nodeWidth = 30)
+    print("input$estado")
+
+    id_opcao<- list(id_topico, input$ano)
+    #print(id_opcao)
+  }
+
+  #print(id_opcao)
+
+
+  #list_graph<-generate_graph(1,1,1)
+  graph<<-generate_graph(1,input$estado,id_opcao)
+  
+  graph
+
+
 })
 
 
 ```
 
-### `r text_header_chart(3,state_machine)`
+### Dados brutos da seleção
 
 ```{r}
+library(DT)
+
+
 renderDataTable({
-  df_rec
+  
+  
+  
+  
+  if (input$estado==1){#Apresentação
+    
+    id_topico<<-
+      (glossario_siconfi%>%
+         filter(topico==input$topico)%>%
+         select(id))$id
+    
+    id_opcao<- list(id_topico, input$ano)
+  }
+  
+  if (input$estado==2){#Seleção de períodicidade
+    
+    id_opcao<- input$ano
+    
+    id_opcao<- list(id_topico, input$ano)
+    #print(id_opcao)
+  }
+  
+  if (input$estado==3 && input$periodicidade=="Anual"){
+    shinyjs::show("finalizar")
+    shinyjs::hide("proximo")
+    updateSelectInput("ano", label ="Informe o ano", choices = 2018:2014, selected = 2018, multiple = TRUE)
+
+    id_opcao<- input$ano
+    
+    id_opcao<- list(id_topico, input$ano)
+  }
+
+  
+  
+  
+  raw_data<<- generate_dt(1,1,id_opcao)
+  
+  DT::datatable(
+    raw_data,
+    rownames = FALSE,
+    fillContainer = TRUE,
+    
+    extensions = 'Buttons', options = list(
+      pageLength = NROW(raw_data),
+      dom = 'Bfrtip',
+      buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+    )
+  )
+  
+  
 })
+
 ```
 

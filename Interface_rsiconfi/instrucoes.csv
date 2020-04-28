@@ -1,0 +1,17 @@
+estado; instrucoes
+1; Bemvindo. A partir daqui você terá a possibilidade de construir dinamicamente consulta que consumirá dados do SICONFI
+1; Logo ao lado esquerdo você vê um menu que oferece as opções dos principais tipos de relatórios possíveis
+1; Ao selecionar uma das opções de relatórios será exibido ao lado direito um exemplo de análise dos dados associados à opção, na primeira aba, bem como os dados que geraram essa análise, na segunda aba. 
+1; Quando identificar o relatório que deseja, use o botão próximo para ir para a próxima etapa
+2; O relatório que você selecionou pode ter distas possibilidades de periodicidade de consolidação de dados.
+2; Se para o relatório que você deseja estiver disponível a opção anual e caso você queira os dado nesse nível de agregação, escolha anual, por exemplo.
+2; Se estiver em dúvida sobre sua opção, experimente alternar a seleção e ver o impacto no gráfico e na amostra dos dados brutos
+2; Após identificar a periodicidade desejada pressione próximo
+3; Agora você pode escolher um ou mais anos que comporão o filtro da sua pesquisa
+3; Observe o efeito de sua escolha nos gráficos e veja parte dos dados brutos referentes a essa escolha.
+3; Quando se sentir satisfeito com sua seleção pressione novamente o botão próximo
+
+
+ 
+
+    
