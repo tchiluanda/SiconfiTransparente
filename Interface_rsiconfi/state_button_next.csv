@@ -1,0 +1,5 @@
+state; button; next_state;
+2; P; 2.1
+2.1; P; 2.2
+2.1; A; 2
+2.2; A; 2.1

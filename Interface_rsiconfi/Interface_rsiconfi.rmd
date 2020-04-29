@@ -28,149 +28,221 @@ glossario_siconfi <- read_delim("glossario_siconfi.csv",
 instrucoes <- read_delim("instrucoes.csv", 
     ";", escape_double = FALSE, trim_ws = TRUE)
 
+state_element <- read_delim("state_element.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
 
+state_button_next <- read_delim("state_button_next.csv", 
+    ";", escape_double = FALSE, col_types = cols(X4 = col_skip()), 
+    trim_ws = TRUE)
 
-
-generate_graph<- function(chart, estado, opcao){
-
-  #print("generate gráfico")
-  #print(estado)
-  #print(opcao)
-
+set_next_state<- function(current_state,a_button){
   
-  ####################Corrigir considerando o novo significado do estado e do estado 3. Primeiro tem que resolver a #perioricidade e em seguida o ano. 
-  if(chart==1){
-    if(estado %in% c(1,2)){ #relatórios iniciais
-      #print("if(estado == 1 | estado==2)")
-      if (opcao[[1]]==1){#Receitas orçamentárias
-        #print("if (opcao[[1]]==1)")
-
-        print(opcao[[2]])
-        #df_rec <- rsiconfi::get_dca(c(2015,2018),"I-C","1")
-        df_rec <- rsiconfi::get_dca(opcao[[2]],"I-C","1")
-
-
-
-        df_rec_trabalho<-
-          df_rec %>%
-          #filter(stringr::str_starts(cod_conta,"R")) %>%
-          filter(coluna == "Receitas Brutas Realizadas") %>%
-          mutate(nivel_0 = cod_conta =="TotalReceitas" ) %>%
-          mutate(nivel_1= (stringr::str_ends(cod_conta,".0.0.0.00.0.0"))) %>%
-          mutate(nivel_2= ((stringr::str_sub(cod_conta,5,5)!= "0") & (stringr::str_ends(cod_conta,"0.0.00.0.0")))) %>%
-          mutate(nivel_3= ((stringr::str_sub(cod_conta,7,7)!= "0") & (stringr::str_ends(cod_conta,"0.00.0.0")))) %>%
-          filter(nivel_0 | nivel_1 | nivel_2 | nivel_3) %>%
-          mutate(pai = case_when(
-            nivel_1 ~ "TotalReceitas",
-            nivel_2 ~ paste0(stringr::str_sub(cod_conta,1,3), ".0.0.0.00.0.0"),
-            nivel_3 ~ paste0(stringr::str_sub(cod_conta,1,5), ".0.0.00.0.0")
-          )) %>%
-          mutate (source = row_number() -1)
-
-        #unique(df_rec_trabalho$exercicio)
-
-        graph<-
-          df_rec_trabalho%>%
-          filter(nivel_2==1)%>%
-          mutate(conta =  stringr::str_sub(conta, 18,str_length(conta)),
-                 exercicio = as.character(exercicio))%>%
-          select(conta, valor, exercicio) %>%
-          mutate(conta = reorder(conta, valor)) %>%
-          ggplot(aes(x=conta, y= valor/10^6)) +
-          geom_col(fill= "#fdd500") + #
-          theme_light() +
-          theme(
-            #strip.text =  element_blank(),
-            axis.text.x =  element_text(angle = 90, hjust = 1),
-            panel.grid = element_blank()  )+
-          labs(
-            y = "Valor em R$ milhões",
-            x=  NULL,
-            fill = ""  )+
-          scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
-          facet_wrap(factor(exercicio)~.) +
-          #facet_grid(unique(conta)+exercicio~., scales =   "free_y")+
-          coord_flip()
-
-        return(graph)
-
-
-      }
-
-      if (opcao[[1]]==2){ #Despesas orçamntárias
-        #Criar gráfico de sankey
-        df_desp <- rsiconfi::get_dca(opcao[[2]],"I-D","1")
-        #df_desp <- rsiconfi::get_dca(c(2017,2018),"I-D","1")
-
-
-        df_desp_trabalho<-
-          df_desp %>%
-          #filter(stringr::str_starts(cod_conta,"R")) %>%
-          filter(coluna == "Despesas Liquidadas") %>%
-          mutate(nivel_0 = cod_conta =="TotalDespesas" ) %>%
-          mutate(nivel_1= (stringr::str_ends(cod_conta,"0.00.00.00.00"))) %>%
-          mutate(nivel_2= ((stringr::str_sub(cod_conta,5,5)!= "0") & (stringr::str_ends(cod_conta,"00.00.00.00")))) %>%
-          mutate(nivel_3= ((stringr::str_sub(cod_conta,7,8)!= "00") & (stringr::str_ends(cod_conta,"00.00.00")))) %>%
-          filter(nivel_0 | nivel_1 | nivel_2 | nivel_3  ) %>% #
-          mutate(pai = case_when(
-            nivel_1 ~ "TotalDespesas",
-            nivel_2 ~ paste0(stringr::str_sub(cod_conta,1,3), ".0.00.00.00.00"),
-            nivel_3 ~ paste0(stringr::str_sub(cod_conta,1,5), ".00.00.00.00")
-          )) %>%
-          filter(str_sub(cod_conta,1,2)!="DI")%>%
-          mutate (source = row_number() -1)%>% 
-          mutate(conta= case_when(
-    cod_conta == "TotalDespesas" ~ "Total de despesas liquidadas",
-    exercicio == "2018" ~ stringr::str_sub(conta, 16,str_length(conta)),
-    exercicio < "2018" ~  stringr::str_sub(conta, 19,str_length(conta))
-  ))
-
-        graph<-
-          df_desp_trabalho%>%
-          filter(nivel_2==1)%>%
-          mutate( exercicio = as.character(exercicio))%>%
-          select(conta, valor,exercicio) %>%
-          mutate(conta = reorder(conta, valor)) %>%
-          ggplot(aes(x=conta, y= valor/10^6)) +
-          geom_col(fill= "#329c2d") +
-          theme_light() +
-          theme(
-            #strip.text =  element_blank(),
-            axis.text.x =  element_text(angle = 90, hjust = 1),
-            panel.grid = element_blank()  )+
-          labs(
-            y = "Valor em R$ milhões",
-            x=  NULL,
-            fill = ""  )+
-          scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
-          facet_wrap(factor(exercicio)~.) +
-          coord_flip()
-
-        return(graph)
-
-      }
-
-    }
+  
+  
+  #hide the element associated with the current state
+  element<-
+    (state_element %>%
+    filter(state==current_state)%>%
+    select(element))$element
+  
+  
+  
+  hide(element)
+  
+  
+  
+  #identify the next state
+  
+  next_state<-
+  (state_button_next %>%
+    filter(state == current_state,
+           button == a_button) %>%
+    select(next_state))$next_state
+  
+  print(state_button_next)
+  
+  # next_state<-
+  # (state_button_next %>%
+  #   filter(state == 2,
+  #          button == "A") %>%
+  #   select(next_state))$next_state
+  
+  if (length(next_state)==0  && a_button == "P"){
+    
+    next_state<- as.numeric(current_state) +1
   }
+
+  if (length(next_state) == 0 && a_button == "A"){
+    next_state<- as.numeric(current_state) - 1
+    
+  }
+  
+  
+  print(next_state)
+  #show the elements and buttons associated with the next state
+  df_state_element<-
+    state_element %>%
+    filter(state==next_state)
+  
+  # df_state_element<-
+  #   state_element %>%
+  #   filter(state==2)
+  
+  
+  element<- df_state_element$element
+  button_a<- df_state_element$button_a
+  button_p<- df_state_element$button_p
+  button_f<- df_state_element$button_f
+  
+  
+
+  updateTextInput(session = session, inputId = "state", value = next_state)
+  
+  show(element)
+  
+  if(button_a==1){
+    show("anterior")
+  } else{
+    hide("anterior")
+  }
+  
+  if (button_p==1){
+    show("proximo")
+  } else{
+    hide("proximo")
+  }
+    
+  
+  
+  if (button_f==1){
+    show("finalizar")
+  } else{
+    hide("finalizar")
+  }
+  
+
 
 }
 
-generate_dt <- function(dt,estado, opcao){
-  if (dt==1){
+generate_graph<- function(opcao){
+  
+  
+  if (opcao$topico==1){#Receitas orçamentárias
+    #df_rec <- rsiconfi::get_dca(c(2015,2018),"I-C","1")
+    df_rec <- rsiconfi::get_dca(opcao$ano,"I-C","1")
+
+    df_rec_trabalho<-
+      df_rec %>%
+      #filter(stringr::str_starts(cod_conta,"R")) %>%
+      filter(coluna == "Receitas Brutas Realizadas") %>%
+      mutate(nivel_0 = cod_conta =="TotalReceitas" ) %>%
+      mutate(nivel_1= (stringr::str_ends(cod_conta,".0.0.0.00.0.0"))) %>%
+      mutate(nivel_2= ((stringr::str_sub(cod_conta,5,5)!= "0") & (stringr::str_ends(cod_conta,"0.0.00.0.0")))) %>%
+      mutate(nivel_3= ((stringr::str_sub(cod_conta,7,7)!= "0") & (stringr::str_ends(cod_conta,"0.00.0.0")))) %>%
+      filter(nivel_0 | nivel_1 | nivel_2 | nivel_3) %>%
+      mutate(pai = case_when(
+        nivel_1 ~ "TotalReceitas",
+        nivel_2 ~ paste0(stringr::str_sub(cod_conta,1,3), ".0.0.0.00.0.0"),
+        nivel_3 ~ paste0(stringr::str_sub(cod_conta,1,5), ".0.0.00.0.0")
+      )) %>%
+      mutate (source = row_number() -1)
     
-      if (opcao[[1]] ==1){
-        df_rec <- rsiconfi::get_dca(opcao[[2]],"I-C","1")
-        return(df_rec)
-      }
 
-      if (opcao[[1]] ==2){
-        df_desp <- rsiconfi::get_dca(opcao[[2]],"I-D","1")
-        return(df_desp)
-      }
-
-
+    
+    graph<-
+      df_rec_trabalho%>%
+      filter(nivel_2==1)%>%
+      mutate(conta =  stringr::str_sub(conta, 18,str_length(conta)),
+             exercicio = as.character(exercicio))%>%
+      select(conta, valor, exercicio) %>%
+      mutate(conta = reorder(conta, valor)) %>%
+      ggplot(aes(x=conta, y= valor/10^6)) +
+      geom_col(fill= "#fdd500") + #
+      theme_light() +
+      theme(
+        #strip.text =  element_blank(),
+        axis.text.x =  element_text(angle = 90, hjust = 1),
+        panel.grid = element_blank()  )+
+      labs(
+        y = "Valor em R$ milhões",
+        x=  NULL,
+        fill = ""  )+
+      scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+      facet_wrap(factor(exercicio)~.) +
+      #facet_grid(unique(conta)+exercicio~., scales =   "free_y")+
+      coord_flip()
+    
+    return(graph)
+    
+    
   }
+  
+  if (opcao$topico==2){ #Despesas orçamntárias
+    #Criar gráfico de sankey
+    df_desp <- rsiconfi::get_dca(opcao$ano,"I-D","1")
+    #df_desp <- rsiconfi::get_dca(c(2017,2018),"I-D","1")
+    
+    
+    df_desp_trabalho<-
+      df_desp %>%
+      #filter(stringr::str_starts(cod_conta,"R")) %>%
+      filter(coluna == "Despesas Liquidadas") %>%
+      mutate(nivel_0 = cod_conta =="TotalDespesas" ) %>%
+      mutate(nivel_1= (stringr::str_ends(cod_conta,"0.00.00.00.00"))) %>%
+      mutate(nivel_2= ((stringr::str_sub(cod_conta,5,5)!= "0") & (stringr::str_ends(cod_conta,"00.00.00.00")))) %>%
+      mutate(nivel_3= ((stringr::str_sub(cod_conta,7,8)!= "00") & (stringr::str_ends(cod_conta,"00.00.00")))) %>%
+      filter(nivel_0 | nivel_1 | nivel_2 | nivel_3  ) %>% #
+      mutate(pai = case_when(
+        nivel_1 ~ "TotalDespesas",
+        nivel_2 ~ paste0(stringr::str_sub(cod_conta,1,3), ".0.00.00.00.00"),
+        nivel_3 ~ paste0(stringr::str_sub(cod_conta,1,5), ".00.00.00.00")
+      )) %>%
+      filter(str_sub(cod_conta,1,2)!="DI")%>%
+      mutate (source = row_number() -1)%>% 
+      mutate(conta= case_when(
+        cod_conta == "TotalDespesas" ~ "Total de despesas liquidadas",
+        exercicio == "2018" ~ stringr::str_sub(conta, 16,str_length(conta)),
+        exercicio < "2018" ~  stringr::str_sub(conta, 19,str_length(conta))
+      ))
+    
+    graph<-
+      df_desp_trabalho%>%
+      filter(nivel_2==1)%>%
+      mutate( exercicio = as.character(exercicio))%>%
+      select(conta, valor,exercicio) %>%
+      mutate(conta = reorder(conta, valor)) %>%
+      ggplot(aes(x=conta, y= valor/10^6)) +
+      geom_col(fill= "#329c2d") +
+      theme_light() +
+      theme(
+        #strip.text =  element_blank(),
+        axis.text.x =  element_text(angle = 90, hjust = 1),
+        panel.grid = element_blank()  )+
+      labs(
+        y = "Valor em R$ milhões",
+        x=  NULL,
+        fill = ""  )+
+      scale_y_continuous(labels=function(x) format(x, big.mark = ".", scientific = FALSE))+
+      facet_wrap(factor(exercicio)~.) +
+      coord_flip()
+    
+    return(graph)
+    
+  }
+  
+}
 
+generate_dt <- function(opcao){
+  if (opcao$topico ==1){
+    df_rec <- rsiconfi::get_dca(opcao$ano,"I-C","1")
+    return(df_rec)
+  }
+  
+  if (opcao$topico ==2){
+    df_desp <- rsiconfi::get_dca(opcao$ano,"I-D","1")
+    return(df_desp)
+  }
+  
 }
 
 
@@ -198,11 +270,15 @@ hidden(
 hidden( div(id = "finalizar",actionButton("finalizar", "Finalizar")))
 
 hidden(
-         div(id = "estado", textInput("estado", "estado", value = "1", width = NULL,
+         div(id = "state", textInput("state", "estado", value = "1", width = NULL,
    placeholder = NULL)))
 
+hidden(
+         div(id = "anterior", actionButton("anterior", "Anterior")))
 
 
+hidden(
+         div(id = "finalizar", actionButton("finalizar", "Finalizar")))
 
 
 
@@ -210,29 +286,22 @@ hidden(
 
 ```{r}
 actionButton("proximo", "Próximo")
+
+
 observeEvent(input$proximo, {
   
-  if (input$estado==1){#Apresentação
-    
-     print(input$estado)    
-     opcao_rel<<- input$topico    
-     shinyjs::toggle(id = "topico", anim = TRUE)
-     shinyjs::toggle(id = "periodicidade", anim = TRUE)
-     updateTextInput(session,"estado", value = "2")
+  set_next_state(input$state, "P")
+  
 
-  }
-  
-  if (input$estado==2){#periodicidade
-    
-     print(input$estado)    
-     opcao_rel<<- input$topico    
-     shinyjs::toggle(id = "ano", anim = TRUE)
-     shinyjs::toggle(id = "periodicidade", anim = TRUE)
-     updateTextInput(session,"estado", value = "3")
+})
 
-  }
+
+observeEvent(input$anterior, {
   
   
+  set_next_state(input$state, "A")
+  
+
 })
 
 
@@ -252,7 +321,7 @@ shiny::renderUI({
 
   instrucoes_trabalho<- 
     instrucoes%>%
-    filter(estado==input$estado)%>%
+    filter(estado==input$state)%>%
   select(instrucoes)
     
 
@@ -300,43 +369,25 @@ Column {.tabset .tabset-fade}
 
 
 renderPlot({
-
-
-  if (input$estado==3 && input$periodicidade=="Anual"){
-    shinyjs::show("finalizar")
-    shinyjs::hide("proximo")
-    updateSelectInput("ano", label ="Informe o ano", choices = 2018:2014, selected = 2018, multiple = TRUE)
-    
-  }  
-  if (input$estado==1){#Apreentação
-
-    id_topico<<-
-      (glossario_siconfi%>%
-         filter(topico==input$topico)%>%
-         select(id))$id
-
-    id_opcao<- list(id_topico, input$ano)
-  }
   
   
-
-  if (input$estado %in% c(2,3)){#Seleção de periodicidade, ou ano
-    
-    print("input$estado")
-
-    id_opcao<- list(id_topico, input$ano)
-    #print(id_opcao)
-  }
-
-  #print(id_opcao)
-
-
-  #list_graph<-generate_graph(1,1,1)
-  graph<<-generate_graph(1,input$estado,id_opcao)
+  
+  id_topico<-
+    (glossario_siconfi%>%
+       filter(topico==input$topico)%>%
+       select(id))$id[1]
+  
+  id_opcao<- list(topico = id_topico, ano= input$ano)
+  
+  print(id_opcao)
+  
+  
+  
+  graph<-generate_graph(id_opcao)
   
   graph
-
-
+  
+  
 })
 
 
@@ -349,42 +400,15 @@ library(DT)
 
 
 renderDataTable({
-  
-  
-  
-  
-  if (input$estado==1){#Apresentação
-    
-    id_topico<<-
-      (glossario_siconfi%>%
-         filter(topico==input$topico)%>%
-         select(id))$id
-    
-    id_opcao<- list(id_topico, input$ano)
-  }
-  
-  if (input$estado==2){#Seleção de períodicidade
-    
-    id_opcao<- input$ano
-    
-    id_opcao<- list(id_topico, input$ano)
-    #print(id_opcao)
-  }
-  
-  if (input$estado==3 && input$periodicidade=="Anual"){
-    shinyjs::show("finalizar")
-    shinyjs::hide("proximo")
-    updateSelectInput("ano", label ="Informe o ano", choices = 2018:2014, selected = 2018, multiple = TRUE)
 
-    id_opcao<- input$ano
-    
-    id_opcao<- list(id_topico, input$ano)
-  }
-
+  id_topico<<-
+    (glossario_siconfi%>%
+       filter(topico==input$topico)%>%
+       select(id))$id
   
+  id_opcao<- list(topico = id_topico, ano= input$ano)
   
-  
-  raw_data<<- generate_dt(1,1,id_opcao)
+  raw_data<<- generate_dt(id_opcao)
   
   DT::datatable(
     raw_data,
