@@ -10,6 +10,9 @@ estado; instrucoes
 2.1; O empenho representa o primeiro estágio da despesa orçamentária. É registrado no momento da contratação do serviço, aquisição do material ou bem, obra e amortização da dívida.
 2.1; A liquidação é o segundo estágio da despesa orçamentária. É, normalmente, processada pelas Unidades Executoras ao receberem o objeto do empenho (o material, serviço, bem ou obra).
 2.1; O pagamento da despesa refere-se ao terceiro estágio e será processada pela Unidade Gestora Executora no momento da emissão do documento Ordem Bancária (OB) e documentos relativos a retenções de tributos, quando for o caso.
- 
+2.11; Escolha uma ou mais funções de governo dentre as disponíveis.
+3; Os dados podem se referir ao Governo Federal, estados ou munícipios. Faça a sua escolha
+3.1; Escolha uma ou mais Unidades da Federação
+3.2; Escolha um ou mais municípios
 
     

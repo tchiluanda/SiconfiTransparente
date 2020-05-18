@@ -1,5 +1,9 @@
 state; button; next_state; condition
-2; P; 2.1; input$topico %in% c("Despesa Orçamentária")
-2.1; P; 2.2; input$topico %in% c("Despesa Por Função")
+2; P; 2.1; input$topico %in% c("Despesa Orçamentária", "Despesa Por Função")
+2.1; P; 2.11; input$topico %in% c("Despesa Por Função")
 2.1; A; 2; TRUE
-2.2; A; 2.1;TRUE
+2.11; A; 2.1;TRUE
+3; P; 3.1; input$escopo %in% c("Estados")
+3; P; 3.2; input$escopo %in% c("Municípios")
+3.1; A; 3; TRUE
+3.2; A; 3; TRUE
