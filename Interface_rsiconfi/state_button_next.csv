@@ -5,5 +5,11 @@ state; button; next_state; condition
 2.11; A; 2.1;TRUE
 3; P; 3.1; input$escopo %in% c("Estados")
 3; P; 3.2; input$escopo %in% c("Municípios")
+3.2; P; 3.21; input$tipo_cons_mun == "Escolher de uma lista"
+3.2; P; 3.22; input$tipo_cons_mun == "Todos de uma ou mais UFs"
+3.2; P; 3.23; input$tipo_cons_mun == "Por faixa populacional"
 3.1; A; 3; TRUE
 3.2; A; 3; TRUE
+3.21; A; 3.2; TRUE
+3.22; A; 3.2; TRUE
+3.23;A; 3.2; TRUE

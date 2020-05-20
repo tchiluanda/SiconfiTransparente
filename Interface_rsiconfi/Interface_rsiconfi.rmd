@@ -38,6 +38,101 @@ state_button_next <- read_delim("state_button_next.csv",
 
 contas<-rsiconfi::get_account_dca(2018,"I-E",1)
 
+hidden(
+  div(id = "tipo_cons_mun", radioButtons("tipo_cons_mun", label ="Informe o filtro para municípios", choices = c("Escolher de uma lista", "Todos de uma ou mais UFs","Por faixa populacional"), selected = "Escolher de uma lista"))
+  
+         )
+
+get_lista_instituicao<- function(opcao){
+  
+  if(opcao$escopo == "Governo Federal"){
+    lista_instituicao<-1
+  } else if(opcao$escopo == "Estados"){
+    
+    cod_uf<-   
+      (municipios_IBGE%>%   
+         filter(uf %in% opcao$uf) %>%   
+         distinct(cod_uf))$cod_uf
+    
+    
+    lista_instituicao <- cod_uf
+    
+  } else if (opcao$escopo == "Municípios"){
+    
+    if (opcao$tipo_cons_mun=="Escolher de uma lista"){
+      cod_mun<- 
+        (municipios_IBGE%>%
+           filter(nome_municipio %in% opcao$municipio) %>%
+           select(cod_mun))$cod_mun
+      
+      lista_instituicao <- cod_mun
+      
+      
+    } else if (opcao$tipo_cons_mun=="Por faixa populacional"){
+      
+      IBGE<- 
+        municipios_IBGE %>%
+        filter(!is.na(pop_estimada)) %>%
+        mutate(pop_estimada = as.numeric(stringr::str_remove_all(pop_estimada,","))) 
+      
+      mun_q1<-
+        (IBGE %>%
+        filter(pop_estimada<=quantile(IBGE$pop_estimada, 0.25, na.rm = TRUE)))$cod_mun
+      
+      mun_q2<-
+        (IBGE %>%
+        filter(pop_estimada>quantile(IBGE$pop_estimada, 0.25, na.rm = TRUE),
+                pop_estimada<=quantile(IBGE$pop_estimada, 0.5, na.rm = TRUE)))$cod_mun
+      
+      mun_q3<-
+        (IBGE %>%
+        filter(pop_estimada>quantile(IBGE$pop_estimada, 0.5, na.rm = TRUE),
+                pop_estimada<=quantile(IBGE$pop_estimada, 0.75, na.rm = TRUE)))$cod_mun
+      
+      mun_q4<-
+        (IBGE %>%
+        filter(pop_estimada>quantile(IBGE$pop_estimada, 0.75, na.rm = TRUE)))$cod_mun
+      
+      #"Primeiro quartil", "Segundo quartil","Terceiro quartil", "Quarto quartil"
+      
+      lista_instituicao<- c(numeric())
+      if ("Primeiro quartil" %in% opcao$mun_pop){
+        lista_instituicao<- c(lista_instituicao,mun_q1)
+      }
+
+      if ("Segundo quartil" %in% opcao$mun_pop){
+        lista_instituicao<- c(lista_instituicao,mun_q2)
+      }
+
+      if ("Terceiro quartil" %in% opcao$mun_pop){
+        lista_instituicao<- c(lista_instituicao,mun_q3)
+      }
+      
+      if ("Quarto quartil" %in% opcao$mun_pop){
+        lista_instituicao<- c(lista_instituicao,mun_q4)
+      }
+      
+
+    } else if (opcao$tipo_cons_mun=="Todos de uma ou mais UFs"){
+      
+      cod_uf<-   
+        (municipios_IBGE%>%   
+           filter(uf %in% opcao$mun_uf) %>%   
+           distinct(cod_uf))$cod_uf
+      
+      print(opcao)
+      lista_instituicao <- cod_uf
+      
+      
+    }
+    
+  }
+  
+  lista_instituicao
+  
+  
+}
+
 set_next_state<- function(current_state,a_button){
   
   
@@ -188,29 +283,9 @@ set_next_state<- function(current_state,a_button){
 generate_graph<- function(opcao){
   
   
+  lista_instituicao <- get_lista_instituicao(opcao)
   
-  if(opcao$escopo == "Governo Federal"){
-    lista_instituicao<-1
-  } else if(opcao$escopo == "Estados"){
-    
-     cod_uf<-   
-       (municipios_IBGE%>%   
-          filter(uf== opcao$uf) %>%   
-          distinct(cod_uf))$cod_uf
-     lista_instituicao <- cod_uf
-  } else if (opcao$escopo == "Municípios"){
-     
-     cod_mun<- 
-       (municipios_IBGE%>%
-          filter(nome_municipio %in% opcao$municipio) %>%
-          select(cod_mun))$cod_mun
-     
-     lista_instituicao <- cod_mun
-    
-  }
-  
-  
-  
+
   if (opcao$topico==1){#Receitas orçamentárias
     #df_rec <- rsiconfi::get_dca(c(2015,2018),"I-C","1")
     df_rec <- rsiconfi::get_dca(opcao$ano,"I-C",lista_instituicao)
@@ -356,13 +431,16 @@ generate_graph<- function(opcao){
 }
 
 generate_dt <- function(opcao){
+  
+  lista_instituicao <- get_lista_instituicao(opcao)
+  
   if (opcao$topico ==1){
-    df_rec <- rsiconfi::get_dca(opcao$ano,"I-C","1")
+    df_rec <- rsiconfi::get_dca(opcao$ano,"I-C",lista_instituicao)
     return(df_rec)
   }
   
   if (opcao$topico ==2){
-    df_desp <- rsiconfi::get_dca(opcao$ano,"I-D","1")
+    df_desp <- rsiconfi::get_dca(opcao$ano,"I-D",lista_instituicao)
     df_desp <-
     df_desp%>%
       filter(coluna %in% opcao$fase)
@@ -379,7 +457,7 @@ generate_dt <- function(opcao){
     
     #print(funcao)
     
-    df_func <- rsiconfi::get_dca(opcao$ano,"I-E","1",arg_cod_conta = funcao)
+    df_func <- rsiconfi::get_dca(opcao$ano,"I-E",lista_instituicao,arg_cod_conta = funcao)
     df_func <-
     df_func%>%
       filter(coluna %in% opcao$fase)
@@ -400,6 +478,8 @@ generate_script<- function(opcao){
   
   lista_ano<- opcao$ano[1]
   
+  opcao_uf <- opcao$tipo_cons_mun=="Todos de uma ou mais UFs" 
+  
   for (ano in opcao$ano[-1]){
     lista_ano<- paste(lista_ano,ano,sep = ",")
   }
@@ -408,32 +488,66 @@ generate_script<- function(opcao){
   for (fase in opcao$fase[-1]){
     lista_fase<- paste0(lista_fase,",","'", fase, "'")
   }
-
+  
+  lista_instituicao <- get_lista_instituicao(opcao)
+  
+  lista_instituicao_script<- paste0("'",lista_instituicao[1], "'")
+  for (instituicao in lista_instituicao[-1]){
+    lista_instituicao_script<- paste0(lista_instituicao_script,",","'", instituicao, "'")
+  }
+  
+  
   funcao<-
     (contas %>%
-    filter(conta %in% opcao$funcao) %>%
-    select(cod_interno))$cod_interno
-
+       filter(conta %in% opcao$funcao) %>%
+       select(cod_interno))$cod_interno
+  
   
   
   lista_funcao<- paste0("'",funcao[1], "'")
   
   
+  
   for (funcao in funcao[-1]){
     lista_funcao<- paste0(lista_funcao,",","'", funcao, "'")
   }
-
+  
   
   
   if (opcao$topico ==1){
     
-    lines_script[4,1]<- paste0("df_rec <- rsiconfi::get_dca(c(",lista_ano,"),'I-C','1')")
+    if (opcao_uf){
+      
+      lines_script[4,1]<- paste0("df_rec <- rsiconfi::get_dca_mun_state(c(",lista_ano,"),'I-C',c(", lista_instituicao_script,"))")
+      
+      
+    } else{
+      
+      lines_script[4,1]<- paste0("df_rec <- rsiconfi::get_dca(c(",lista_ano,"),'I-C',c(", lista_instituicao_script,"))")
+      
+      
+      
+    }
+    
     
   }
   
   if (opcao$topico ==2){
-
-    lines_script[4,1]<- paste0("df_desp <- rsiconfi::get_dca(c(",lista_ano,"),'I-D','1')")
+    
+    if (opcao_uf){
+      
+      lines_script[4,1]<- paste0("df_rec <- rsiconfi::get_dca_mun_state(c(",lista_ano,"),'I-D',c(", lista_instituicao_script,"))")
+      
+      
+    } else{
+      
+      lines_script[4,1]<- paste0("df_rec <- rsiconfi::get_dca(c(",lista_ano,"),'I-D',c(", lista_instituicao_script,"))")
+      
+      
+      
+    }
+    
+    
     lines_script[5,1]<- "#Filter the data. Only the selected expenditure phases will be available"
     lines_script[6,1]<- paste0("df_desp <-df_desp%>%filter(coluna %in% c(",lista_fase,"))")
     
@@ -441,19 +555,32 @@ generate_script<- function(opcao){
   
   if (opcao$topico ==3){
     
-    #,arg_cod_conta = funcao
-
     lines_script [4,1] <- "#Call the method that retrieves data for the specified government functions"
-    lines_script[5,1]<- paste0("df_func <- rsiconfi::get_dca(c(",lista_ano,"),'I-E','1',arg_cod_conta =c(", lista_funcao,"))")
+    
+    if (opcao_uf){
+      
+      lines_script[5,1]<- paste0("df_func <- rsiconfi::get_dca_mun_state(c(",lista_ano,"),'I-E',c(", lista_instituicao_script,"),arg_cod_conta =c(", lista_funcao,"))")
+      
+      
+    } else{
+      
+      lines_script[5,1]<- paste0("df_func <- rsiconfi::get_dca(c(",lista_ano,"),'I-E',c(", lista_instituicao_script,"),arg_cod_conta =c(", lista_funcao,"))")
+      
+      
+      
+    }
+    
+    
+
     lines_script[6,1]<- "#Filter the data. Only the selected expenditure phases will be available"
     lines_script[7,1]<- paste0("df_func <-df_func%>%filter(coluna %in% c(",lista_fase,"))")
     
   }
   
-
+  
   
   lines_script
-
+  
   
 }
 
@@ -495,11 +622,23 @@ hidden(
          div(id = "uf", selectInput("uf", label ="Selecione uma ou mais UF", choices = sort((municipios_IBGE%>%filter(!is.na(cod_uf))%>%distinct(uf))$uf), selected = "SP", multiple = TRUE)))
 
 
+
+hidden(
+  div(id = "tipo_cons_mun", radioButtons("tipo_cons_mun", label ="Informe o filtro para municípios", choices = c("Escolher de uma lista", "Todos de uma ou mais UFs","Por faixa populacional"), selected = "Escolher de uma lista"))
+  
+         )
+
 hidden(
          div(id = "municipio", selectInput("municipio", label ="Selecione um ou mais municípios", choices = municipios_IBGE$nome_municipio, selected = "São Paulo", multiple = TRUE)))
 
 
-#selectInput("municipio_func","Município",choices = municipios_IBGE$nome_municipio, multiple = TRUE, selected = "São Paulo")
+hidden(
+         div(id = "mun_uf", selectInput("mun_uf", label ="Selecione uma ou mais UF para filtrar os municípios", choices = sort((municipios_IBGE%>%filter(!is.na(cod_uf))%>%distinct(uf))$uf), selected = "SP", multiple = TRUE)))
+
+hidden(
+  div(id = "mun_pop", checkboxGroupInput("mun_pop", label ="Selecione uma ou mais faixas populacionais", choices = c("Primeiro quartil", "Segundo quartil","Terceiro quartil", "Quarto quartil"), selected = "Quarto quartil"))
+  
+         )
 
 
 hidden(
@@ -606,6 +745,62 @@ shiny::renderUI({
 Column {.tabset .tabset-fade}
 -----------------------------------------------------------------------
 
+### Script que gera os dados
+
+```{r}
+library(DT)
+
+
+renderDataTable({
+
+  id_topico<<-
+    (glossario_siconfi%>%
+       filter(topico==input$topico)%>%
+       select(id))$id[1]
+  
+  id_opcao<- list(topico = id_topico, 
+                  ano= input$ano, 
+                  fase = input$fase, 
+                  funcao= input$funcao, 
+                  escopo = input$escopo,
+                  uf = input$uf,
+                  tipo_cons_mun = input$tipo_cons_mun,
+                  municipio = input$municipio,
+                  mun_uf = input$mun_uf,
+                  mun_pop = input$mun_pop
+                  )
+  
+  script<- generate_script(id_opcao)
+  
+
+  
+  DT::datatable(
+    script,
+    class = "",
+    rownames = FALSE,
+    fillContainer = TRUE,
+    selection = c("none"),
+    extensions = 'Buttons', options = list(
+       ordering=FALSE,
+       paging=FALSE,
+       searching= FALSE,
+       info = FALSE,
+       pageLength = NROW(script),
+       dom = 'Bfrtip',
+       buttons = c('copy')
+    )
+  )%>%
+    formatStyle( columns = "script",backgroundColor = '#f5f5f5')
+  
+  
+})
+
+
+
+```
+
+
+
 ### Gráfico com dados da seleção
 
 ```{r}
@@ -626,7 +821,10 @@ renderPlot({
                   funcao= input$funcao, 
                   escopo = input$escopo,
                   uf = input$uf,
-                  municipio = input$municipio)
+                  tipo_cons_mun = input$tipo_cons_mun,
+                  municipio = input$municipio,
+                  mun_uf = input$mun_uf
+                  )
   
   
   
@@ -661,7 +859,10 @@ renderDataTable({
                   funcao= input$funcao, 
                   escopo = input$escopo,
                   uf = input$uf,
-                  municipio = input$municipio)
+                  tipo_cons_mun = input$tipo_cons_mun,
+                  municipio = input$municipio,
+                  mun_uf = input$mun_uf
+                  )
   
   raw_data<<- generate_dt(id_opcao)
   
@@ -683,53 +884,4 @@ renderDataTable({
 
 ```
 
-### Script que gera os dados
-
-```{r}
-library(DT)
-
-
-renderDataTable({
-
-  id_topico<<-
-    (glossario_siconfi%>%
-       filter(topico==input$topico)%>%
-       select(id))$id[1]
-  
-  id_opcao<- list(topico = id_topico, 
-                  ano= input$ano, 
-                  fase = input$fase, 
-                  funcao= input$funcao, 
-                  escopo = input$escopo,
-                  uf = input$uf,
-                  municipio = input$municipio)
-  
-  script<- generate_script(id_opcao)
-  
-
-  
-  DT::datatable(
-    script,
-    class = "",
-    rownames = FALSE,
-    fillContainer = TRUE,
-    selection = c("none"),
-    extensions = 'Buttons', options = list(
-       ordering=FALSE,
-       paging=FALSE,
-       searching= FALSE,
-       info = FALSE,
-       pageLength = NROW(script),
-       dom = 'Bfrtip',
-       buttons = c('copy')
-    )
-  )%>%
-    formatStyle( columns = "script",backgroundColor = '#f5f5f5')
-  
-  
-})
-
-
-
-```
 
