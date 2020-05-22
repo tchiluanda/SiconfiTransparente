@@ -20,8 +20,8 @@ library(kableExtra)
 library(purrr)
 
 
-
-#state_machine<<-1
+show_graph<<-TRUE
+show_data<<- TRUE
 
 glossario_siconfi <- read_delim("glossario_siconfi.csv", 
      ";", escape_double = FALSE, trim_ws = TRUE)
@@ -284,11 +284,22 @@ generate_graph<- function(opcao){
   
   
   lista_instituicao <- get_lista_instituicao(opcao)
-  
+  opcao_uf <- opcao$tipo_cons_mun=="Todos de uma ou mais UFs" 
 
   if (opcao$topico==1){#Receitas orçamentárias
     #df_rec <- rsiconfi::get_dca(c(2015,2018),"I-C","1")
-    df_rec <- rsiconfi::get_dca(opcao$ano,"I-C",lista_instituicao)
+    
+    
+    
+    if (opcao_uf){
+      df_rec <- rsiconfi::get_dca_mun_state(opcao$ano,"I-C",lista_instituicao)
+      
+    } else{
+      
+      df_rec <- rsiconfi::get_dca(opcao$ano,"I-C",lista_instituicao)
+      
+    }
+    
     
     df_rec_trabalho<-
       df_rec %>%
@@ -306,6 +317,15 @@ generate_graph<- function(opcao){
       )) %>%
       mutate (source = row_number() -1)
     
+    instituicao_sel<-
+    (df_rec_trabalho %>%
+      group_by(instituicao) %>%
+      summarise(
+        valor = sum(valor)
+      ) %>%
+      top_n(10, valor))$instituicao
+    
+    
     
     
     graph<-
@@ -315,6 +335,7 @@ generate_graph<- function(opcao){
              exercicio = as.character(exercicio))%>%
       select(conta, valor, exercicio,instituicao) %>%
       mutate(conta = reorder(conta, valor)) %>%
+      filter(instituicao %in% instituicao_sel) %>%
       ggplot(aes(x=conta, y= valor/10^6)) +
       geom_col(fill= "#fdd500") + #
       theme_light() +
@@ -337,12 +358,23 @@ generate_graph<- function(opcao){
   }
   
   if (opcao$topico==2){ #Despesas orçamntárias
+    
+    if (opcao_uf){
+      df_desp <- rsiconfi::get_dca_mun_state(opcao$ano,"I-D",lista_instituicao)
+    } else{
+      df_desp <- rsiconfi::get_dca(opcao$ano,"I-D",lista_instituicao)
+    }
+    
+    
     #Criar gráfico de sankey
-    df_desp <- rsiconfi::get_dca(opcao$ano,"I-D",lista_instituicao)
+    
     df_desp <-
       df_desp%>%
       filter(coluna %in% opcao$fase)
-    #df_desp <- rsiconfi::get_dca(c(2017,2018),"I-D","1")
+    
+    df_desp <-
+      df_desp%>%
+      filter(coluna %in% "Despesas Liquidadas")
     
     
     df_desp_trabalho<-
@@ -367,6 +399,14 @@ generate_graph<- function(opcao){
         exercicio < "2018" ~  stringr::str_sub(conta, 19,str_length(conta))
       ))
     
+    instituicao_sel<-
+    (df_desp_trabalho %>%
+      group_by(instituicao) %>%
+      summarise(
+        valor = sum(valor)
+      ) %>%
+      top_n(10, valor))$instituicao
+      
     
     graph<-
       df_desp_trabalho%>%
@@ -374,7 +414,10 @@ generate_graph<- function(opcao){
       mutate( exercicio = as.character(exercicio))%>%
       mutate(fase_despesa = coluna) %>%
       select(conta, valor,exercicio,fase_despesa, instituicao) %>%
+      #mutate(instituicao = reorder(instituicao, valor)) %>%
       mutate(conta = reorder(conta, valor)) %>%
+      filter(instituicao %in% instituicao_sel) %>%
+      #top_n(10,valor) %>%
       ggplot(aes(x=conta, y= valor/10^6, fill=fase_despesa)) + #,
       geom_col( )+ #fill= "#329c2d"
       theme_light() +
@@ -404,11 +447,30 @@ generate_graph<- function(opcao){
     
     #print(funcao)
     
-    df_func <- rsiconfi::get_dca(opcao$ano,"I-E",lista_instituicao,arg_cod_conta = funcao)
+    if (opcao_uf){
+      df_func <- rsiconfi::get_dca_mun_state(opcao$ano,"I-E",lista_instituicao,arg_cod_conta = funcao)
+      
+    } else{
+      df_func <- rsiconfi::get_dca(opcao$ano,"I-E",lista_instituicao,arg_cod_conta = funcao)
+      
+    }
+    
+    
+    
+    instituicao_sel<-
+    (df_func %>%
+      group_by(instituicao) %>%
+      summarise(
+        valor = sum(valor)
+      ) %>%
+      top_n(10, valor))$instituicao
+
+        
     #print(df_func)
     
     df_func %>%
       filter(coluna  %in% opcao$fase) %>%
+      filter(instituicao %in% instituicao_sel) %>%
       ggplot(aes(x=conta, y= valor, fill= coluna)) +
       geom_col() +
       scale_fill_viridis(discrete=TRUE) +
@@ -434,13 +496,32 @@ generate_dt <- function(opcao){
   
   lista_instituicao <- get_lista_instituicao(opcao)
   
+  opcao_uf <- opcao$tipo_cons_mun=="Todos de uma ou mais UFs"
+  
   if (opcao$topico ==1){
-    df_rec <- rsiconfi::get_dca(opcao$ano,"I-C",lista_instituicao)
+    
+    if (opcao_uf){
+      df_rec <- rsiconfi::get_dca_mun_state(opcao$ano,"I-C",lista_instituicao)
+      
+    } else{
+      df_rec <- rsiconfi::get_dca(opcao$ano,"I-C",lista_instituicao)
+      
+    }
+    
     return(df_rec)
   }
   
   if (opcao$topico ==2){
-    df_desp <- rsiconfi::get_dca(opcao$ano,"I-D",lista_instituicao)
+    if (opcao_uf){
+      df_desp <- rsiconfi::get_dca_mun_state(opcao$ano,"I-D",lista_instituicao)
+      
+    } else{
+      
+      df_desp <- rsiconfi::get_dca(opcao$ano,"I-D",lista_instituicao)
+      
+    }
+    
+    
     df_desp <-
     df_desp%>%
       filter(coluna %in% opcao$fase)
@@ -450,10 +531,21 @@ generate_dt <- function(opcao){
   
   if (opcao$topico ==3){
     
+    
     funcao<-
     (contas %>%
     filter(conta %in% opcao$funcao) %>%
     select(cod_interno))$cod_interno
+    
+    if (opcao_uf){
+      df_func <- rsiconfi::get_dca_mun_state(opcao$ano,"I-E",lista_instituicao,arg_cod_conta = funcao)
+      
+    } else{
+      
+      df_func <- rsiconfi::get_dca(opcao$ano,"I-E",lista_instituicao,arg_cod_conta = funcao)
+      
+    }
+
     
     #print(funcao)
     
@@ -633,7 +725,7 @@ hidden(
 
 
 hidden(
-         div(id = "mun_uf", selectInput("mun_uf", label ="Selecione uma ou mais UF para filtrar os municípios", choices = sort((municipios_IBGE%>%filter(!is.na(cod_uf))%>%distinct(uf))$uf), selected = "SP", multiple = TRUE)))
+         div(id = "mun_uf", selectInput("mun_uf", label ="Selecione uma ou mais UF para filtrar os municípios", choices = sort((municipios_IBGE%>%filter(!is.na(cod_uf))%>%distinct(uf))$uf), selected = "RO", multiple = TRUE)))
 
 hidden(
   div(id = "mun_pop", checkboxGroupInput("mun_pop", label ="Selecione uma ou mais faixas populacionais", choices = c("Primeiro quartil", "Segundo quartil","Terceiro quartil", "Quarto quartil"), selected = "Quarto quartil"))
@@ -652,6 +744,16 @@ hidden(
          div(id = "state", textInput("state", "estado", value = "1", width = NULL,
    placeholder = NULL)))
 
+
+hidden(
+         div(id = "fl_grafico", textInput("fl_grafico", "fl_grafico", value = "1", width = NULL,
+   placeholder = NULL)))
+
+hidden(
+         div(id = "fl_dado", textInput("fl_dado", "fl_dado", value = "1", width = NULL,
+   placeholder = NULL)))
+
+
 hidden(
          div(id = "anterior", actionButton("anterior", "Anterior", width = '100%')))
 
@@ -663,6 +765,12 @@ hidden(
 
 
 div(id = "proximo", actionButton("proximo", "Próximo", width = '100%'))
+div(id = "grafico", actionButton("grafico", "Gera Gráfico", width = '100%'))
+div(id = "dados", actionButton("dados", "Gera Dados", width = '100%'))
+
+
+
+
 
 ```
 
@@ -672,6 +780,7 @@ div(id = "proximo", actionButton("proximo", "Próximo", width = '100%'))
 
 observeEvent(input$proximo, {
   
+
   set_next_state(input$state, "P")
   
 
@@ -680,12 +789,136 @@ observeEvent(input$proximo, {
 
 observeEvent(input$anterior, {
   
-  
   set_next_state(input$state, "A")
   
 
 })
 
+observeEvent(input$grafico, {
+  
+  show_graph<<-TRUE
+  
+  
+  updateTextInput(session,"fl_grafico",value=1)
+
+  
+
+})
+
+
+observeEvent(input$dados, {
+  
+  show_data<<- TRUE
+  
+  updateTextInput(session,"fl_dado",value=1)
+  
+  
+
+})
+
+
+
+
+observeEvent(input$ano,{
+  
+  print("observeEvent(input$ano")
+  
+  show_graph<<-FALSE
+  show_data<<- FALSE
+
+  updateTextInput(session,"fl_grafico",value=0)
+  updateTextInput(session,"fl_dado",value=0)
+
+})
+
+
+observeEvent(input$fase,{
+  
+  print("observeEvent(input$fase")
+  
+  show_graph<<-FALSE
+  show_data<<- FALSE
+
+  updateTextInput(session,"fl_grafico",value=0)
+  updateTextInput(session,"fl_dado",value=0)
+
+})
+
+
+observeEvent(input$funcao,{
+  
+  print("observeEvent(input$funcao")
+  show_graph<<-FALSE
+  show_data<<- FALSE
+
+  updateTextInput(session,"fl_grafico",value=0)
+  updateTextInput(session,"fl_dado",value=0)
+
+})
+
+
+observeEvent(input$uf,{
+  
+  print("observeEvent(input$uf")
+  show_graph<<-FALSE
+  show_data<<- FALSE
+
+  updateTextInput(session,"fl_grafico",value=0)
+  updateTextInput(session,"fl_dado",value=0)
+
+})
+
+
+
+observeEvent(input$tipo_cons_mun,{
+  
+  print("observeEvent(input$tipo_cons_mun")
+  show_graph<<-FALSE
+  show_data<<- FALSE
+
+  updateTextInput(session,"fl_grafico",value=0)
+  updateTextInput(session,"fl_dado",value=0)
+
+})
+
+
+observeEvent(input$municipio,{
+  
+  print("observeEvent(input$municipio")
+  
+  show_graph<<-FALSE
+  show_data<<- FALSE
+
+  updateTextInput(session,"fl_grafico",value=0)
+  updateTextInput(session,"fl_dado",value=0)
+
+})
+
+
+observeEvent(input$mun_uf,{
+  
+  print("observeEvent(input$mun_uf")
+  
+  show_graph<<-FALSE
+  show_data<<- FALSE
+
+  updateTextInput(session,"fl_grafico",value=0)
+  updateTextInput(session,"fl_dado",value=0)
+
+})
+
+
+observeEvent(input$mun_pop,{
+  
+  print("observeEvent(input$mun_pop")
+  
+  show_graph<<-FALSE
+  show_data<<- FALSE
+
+  updateTextInput(session,"fl_grafico",value=0)
+  updateTextInput(session,"fl_dado",value=0)
+
+})
 
 ```
 
@@ -772,7 +1005,15 @@ renderDataTable({
   
   script<- generate_script(id_opcao)
   
-
+  print("input$fl_grafico")
+  print(input$fl_grafico)
+  
+  # updateTextInput(session, "fl_grafico", value = 1)
+  # show_graph<<-TRUE
+  # 
+  # updateTextInput(session, "fl_dado", value = 1)
+  # show_data<<-TRUE
+  
   
   DT::datatable(
     script,
@@ -807,32 +1048,38 @@ renderDataTable({
 
 
 renderPlot({
+  print("show_graph")
+  print(show_graph)
   
+  if (input$fl_grafico == 1 && show_graph){
+    id_topico<-
+      (glossario_siconfi%>%
+         filter(topico==input$topico)%>%
+         select(id))$id[1]
+    
+    id_opcao<- list(topico = id_topico, 
+                    ano= input$ano, 
+                    fase = input$fase, 
+                    funcao= input$funcao, 
+                    escopo = input$escopo,
+                    uf = input$uf,
+                    tipo_cons_mun = input$tipo_cons_mun,
+                    municipio = input$municipio,
+                    mun_uf = input$mun_uf,
+                    mun_pop = input$mun_pop
+    )
+    
+    
+    
+    graph<<-generate_graph(id_opcao)
+    
+    
+    
+    graph
+    
+    
+  }
   
-  
-  id_topico<-
-    (glossario_siconfi%>%
-       filter(topico==input$topico)%>%
-       select(id))$id[1]
-  
-  id_opcao<- list(topico = id_topico, 
-                  ano= input$ano, 
-                  fase = input$fase, 
-                  funcao= input$funcao, 
-                  escopo = input$escopo,
-                  uf = input$uf,
-                  tipo_cons_mun = input$tipo_cons_mun,
-                  municipio = input$municipio,
-                  mun_uf = input$mun_uf
-                  )
-  
-  
-  
-  
-  
-  graph<-generate_graph(id_opcao)
-  
-  graph
   
   
 })
@@ -847,37 +1094,48 @@ library(DT)
 
 
 renderDataTable({
-
-  id_topico<<-
-    (glossario_siconfi%>%
-       filter(topico==input$topico)%>%
-       select(id))$id[1]
   
-  id_opcao<- list(topico = id_topico, 
-                  ano= input$ano, 
-                  fase = input$fase, 
-                  funcao= input$funcao, 
-                  escopo = input$escopo,
-                  uf = input$uf,
-                  tipo_cons_mun = input$tipo_cons_mun,
-                  municipio = input$municipio,
-                  mun_uf = input$mun_uf
-                  )
   
-  raw_data<<- generate_dt(id_opcao)
   
-  DT::datatable(
-    raw_data,
-    rownames = FALSE,
-    fillContainer = TRUE,
-    selection = c("none"),
+  if (input$fl_dado == 1 && show_data){
     
-    extensions = 'Buttons', options = list(
-      pageLength = NROW(raw_data),
-      dom = 'Bfrtip',
-      buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+    id_topico<<-
+      (glossario_siconfi%>%
+         filter(topico==input$topico)%>%
+         select(id))$id[1]
+    
+    id_opcao<- list(topico = id_topico, 
+                    ano= input$ano, 
+                    fase = input$fase, 
+                    funcao= input$funcao, 
+                    escopo = input$escopo,
+                    uf = input$uf,
+                    tipo_cons_mun = input$tipo_cons_mun,
+                    municipio = input$municipio,
+                    mun_uf = input$mun_uf,
+                    mun_pop = input$mun_pop
     )
-  )
+    
+    raw_data<<- generate_dt(id_opcao)
+    
+    
+    
+    DT::datatable(
+      raw_data,
+      rownames = FALSE,
+      fillContainer = TRUE,
+      selection = c("none"),
+      
+      extensions = 'Buttons', options = list(
+        pageLength = NROW(raw_data),
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+      )
+    )
+    
+    
+  }
+  
   
   
 })
