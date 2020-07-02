@@ -1,10 +1,10 @@
 estado; instrucoes
-1; Bemvindo. A partir daqui você terá a possibilidade de construir dinamicamente consulta que consumirá dados do SICONFI
+1; Bem-vindo. A partir daqui você terá a possibilidade de construir dinamicamente consulta que consumirá dados do SICONFI
 1; Logo ao lado esquerdo você vê um menu que oferece as opções dos principais tipos de relatórios possíveis
-1; Ao selecionar uma das opções de relatórios será exibido ao lado direito um exemplo de análise dos dados associados à opção, na primeira aba, bem como os dados que geraram essa análise, na segunda aba. 
+1; Ao selecionar uma das opções de relatórios será exibido ao lado direito o script em R que gera os dados de acordo com as sucessivas seleções que você vai fazer. Além disso ao pressionar o botão gerar Gráfico um exemplo de análise dos dados associados à opção será exibido na segunda aba. Se pressionar o botão gerar dados, os dados serão exibidos na terceira aba. 
 1; Quando identificar o relatório que deseja, use o botão próximo para ir para a próxima etapa
 2; Agora você pode escolher um ou mais anos que comporão o filtro da sua pesquisa
-2; Observe o efeito de sua escolha nos gráficos e veja parte dos dados brutos referentes a essa escolha.
+2; Observe o efeito de sua escolha nos gráficos e veja os dados brutos referentes a essa escolha.
 2; Quando se sentir satisfeito com sua seleção pressione novamente o botão próximo
 2.1; A execução da despesa orçamentária pública transcorre em três estágios, que conforme previsto na Lei nº 4.320/1964 são: empenho, liquidação e pagamento.
 2.1; O empenho representa o primeiro estágio da despesa orçamentária. É registrado no momento da contratação do serviço, aquisição do material ou bem, obra e amortização da dívida.
@@ -13,6 +13,20 @@ estado; instrucoes
 2.11; Escolha uma ou mais funções de governo dentre as disponíveis.
 3; Os dados podem se referir ao Governo Federal, estados ou munícipios. Faça a sua escolha
 3.1; Escolha uma ou mais Unidades da Federação
-3.2; Escolha um ou mais municípios
+3.2; Escolha a forma de filtrar dados de munçípios
+3.21; Escolha um mais municípios da lista.
+3.21; A ecolha de muitos municípios, principalmente se for combinada a opção de vários anos, pode representar dificuldades para desempenho de geração de gráficos e de dados
+3.22; Escolha um ou mais estados para trazer dados sobre seus respectivos municípios.
+3.22; Essa escolha está associada a longos tempos para processamento dos gráficos e dos dados associados
+3.23; Escolha uma ou mais mesoregiões para trazer dados sobre seus respectivos municípios.
+3.23; Essa escolha está associada a longos tempos para processamento dos gráficos e dos dados associados
+3.24; Escolha uma ou mais faixas populacionais pelos quartis.
+3.24; Essa escolha está associada a longos tempos para processamento dos gráficos e dos dados associados
+3.25; Escolha uma ou mais faixas populacionais pelos grupos do IBGE.
+3.25; Essa escolha está associada a longos tempos para processamento dos gráficos e dos dados associados
+3.26; Deslize os controles e escolha um intervalo de posições no ranking de PIB per capita.
+3.26; Essa escolha está associada a longos tempos para processamento dos gráficos e dos dados associados.
+
+
 
     

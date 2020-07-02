@@ -8,5 +8,8 @@ state; element; button_a; button_p; button_f
 3.2;tipo_cons_mun;1;1;0
 3.21; municipio;1;1;0
 3.22; mun_uf;1;1;0
-3.23; mun_pop; 1;1;0
+3.23; mun_meso;1;1;0
+3.24; mun_pop; 1;1;0
+3.25; mun_pop_faixa; 1;1;0
+3.26; mun_pib_pc; 1;1;0
 4; fim;1;0;0
