@@ -11,6 +11,8 @@ state; button; next_state; condition
 3.2; P; 3.24; input$tipo_cons_mun == "Por faixa populacional - quartis"
 3.2; P; 3.25; input$tipo_cons_mun == "Por faixa populacional - grupos ibge"
 3.2; P; 3.26; input$tipo_cons_mun == "Por posição PIB per-capita"
+3.2; P; 3.27; input$tipo_cons_mun == "Por posição PIB total"
+3.2; P; 3.28; input$tipo_cons_mun == "Por principal atividade econômica"
 3.1; A; 3; TRUE
 3.2; A; 3; TRUE
 3.21; A; 3.2; TRUE
@@ -19,3 +21,5 @@ state; button; next_state; condition
 3.24;A; 3.2; TRUE
 3.25;A;3.2; TRUE
 3.26;A;3.2; TRUE
+3.27;A;3.2; TRUE
+3.28;A;3.2; TRUE

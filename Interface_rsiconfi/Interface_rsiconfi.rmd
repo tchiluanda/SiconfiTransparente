@@ -83,6 +83,20 @@ hidden(
   
          )
 
+get_lista_atividades<- function(){
+  
+  (ibge_pib_mun%>%
+    group_by(atvidade_economica) %>%
+    summarise(
+      total = sum(PIB_total)
+    ) %>%
+    ungroup() %>%
+    mutate(atvidade_economica = reorder(atvidade_economica, total)) %>%
+    arrange(desc(atvidade_economica)) %>%
+    select(atvidade_economica))$atvidade_economica
+  
+}
+
 
 get_lista_mesoregioes<- function(){
   
@@ -272,13 +286,26 @@ get_lista_instituicao<- function(opcao){
         filter(between(pos_PC,opcao$mun_pib_pc[1],opcao$mun_pib_pc[2])))$cod_mun
       
       
+    } else if (opcao$tipo_cons_mun=="Por posição PIB total"){
+      
+      print(opcao$mun_pib_total)
+      
+      lista_instituicao<-   
+        (ibge_pib_mun %>%
+        filter(between(pos_PIB,opcao$mun_pib_total[1],opcao$mun_pib_total[2])))$cod_mun
+    
+    } else if (opcao$tipo_cons_mun=="Por principal atividade econômica"){
+      
+      print(opcao$mun_atv_eco)
+      
+      lista_instituicao<-   
+        (ibge_pib_mun %>%
+        filter(atvidade_economica %in% opcao$mun_atv_eco ))$cod_mun
+    
     }
-
-            
-  }
   
   lista_instituicao
-  
+  }
   
 }
 
@@ -868,7 +895,7 @@ hidden(
 
 
 hidden(
-  div(id = "tipo_cons_mun", radioButtons("tipo_cons_mun", label ="Informe o filtro para municípios", choices = c("Escolher de uma lista", "Todos de uma ou mais UFs","Por Mesoregião", "Por faixa populacional - quartis", "Por faixa populacional - grupos ibge", "Por posição PIB per-capita" ), selected = "Escolher de uma lista"))
+  div(id = "tipo_cons_mun", radioButtons("tipo_cons_mun", label ="Informe o filtro para municípios", choices = c("Escolher de uma lista", "Todos de uma ou mais UFs","Por Mesoregião", "Por faixa populacional - quartis", "Por faixa populacional - grupos ibge", "Por posição PIB per-capita", "Por posição PIB total", "Por principal atividade econômica" ), selected = "Escolher de uma lista"))
   
          )
 
@@ -883,8 +910,14 @@ hidden(
          div(id = "mun_meso", selectInput("mun_meso", label ="Selecione uma ou mais mesoregiões para filtrar os municípios", choices = get_lista_mesoregioes(), selected = "Metropolitana de São Paulo", multiple = TRUE)))
 
 hidden(
-         div(id = "mun_pib_pc", sliderInput("mun_pib_pc", label ="Selecione uma faixa de posições", min= 1, max= NROW(ibge_pib_mun), step = 100,value = c(1,100))))
+         div(id = "mun_pib_pc", sliderInput("mun_pib_pc", label ="Selecione uma faixa de posições", min= 1, max= NROW(ibge_pib_mun), step = 100,value = c(0,100))))
 
+hidden(
+         div(id = "mun_pib_total", sliderInput("mun_pib_total", label ="Selecione uma faixa de posições", min= 1, max= NROW(ibge_pib_mun), step = 100,value = c(0,100))))
+
+
+hidden(
+         div(id = "mun_atv_eco", checkboxGroupInput("mun_atv_eco", label ="Selecione uma ou mais atividades econômicas", choices = get_lista_atividades(), selected = get_lista_atividades()[1])))
 
 
 hidden(
@@ -1169,7 +1202,9 @@ renderDataTable({
                   mun_pop = input$mun_pop,
                   mun_pop_faixa = input$mun_pop_faixa,
                   mun_meso = input$mun_meso,
-                  mun_pib_pc = input$mun_pib_pc
+                  mun_pib_pc = input$mun_pib_pc,
+                  mun_pib_total = input$mun_pib_total,
+                  mun_atv_eco = input$mun_atv_eco
                   )
   
   script<- generate_script(id_opcao)
@@ -1238,7 +1273,9 @@ renderPlot({
                     mun_pop = input$mun_pop,
                     mun_pop_faixa = input$mun_pop_faixa,
                   mun_meso = input$mun_meso,
-                  mun_pib_pc = input$mun_pib_pc
+                  mun_pib_pc = input$mun_pib_pc,
+                  mun_pib_total = input$mun_pib_total,
+                  mun_atv_eco = input$mun_atv_eco
     )
     
     
@@ -1288,7 +1325,9 @@ renderDataTable({
                     mun_pop = input$mun_pop,
                     mun_pop_faixa = input$mun_pop_faixa,
                     mun_meso = input$mun_meso,
-                  mun_pib_pc = input$mun_pib_pc
+                  mun_pib_pc = input$mun_pib_pc,
+                  mun_pib_total=  input$mun_pib_total,
+                  mun_atv_eco = input$mun_atv_eco
     )
     
     raw_data<<- generate_dt(id_opcao)
