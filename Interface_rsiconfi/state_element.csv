@@ -14,4 +14,5 @@ state; element; button_a; button_p; button_f
 3.26; mun_pib_pc; 1;1;0
 3.27; mun_pib_total; 1;1;0
 3.28; mun_atv_eco; 1;1;0
+3.29; mun_grp_eco; 1;1;0
 4; fim;1;0;0

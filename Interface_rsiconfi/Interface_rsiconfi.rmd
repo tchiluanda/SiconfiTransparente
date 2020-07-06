@@ -25,6 +25,7 @@ library(readr)
 show_graph<<-TRUE
 show_data<<- TRUE
 
+load("dados_cluster.RData")
 
 municipios_IBGE<- 
   municipios_IBGE %>%
@@ -302,6 +303,25 @@ get_lista_instituicao<- function(opcao){
         (ibge_pib_mun %>%
         filter(atvidade_economica %in% opcao$mun_atv_eco ))$cod_mun
     
+    }  else if (opcao$tipo_cons_mun=="Por agrupamento econômico"){
+      
+      print(opcao$mun_grp_eco)
+      
+        cod_mun_cluster<- 
+        (municipios_IBGE%>%
+           filter(nome_municipio %in% opcao$mun_grp_eco) %>%
+           select(cod_mun))$cod_mun   
+        
+        cluster_sel<-
+        (dados_cluster %>%
+        filter(cod_mun == cod_mun_cluster) %>%
+          select(cluster))$cluster
+        
+        lista_instituicao<-
+        (dados_cluster %>%
+        filter(cluster == cluster_sel) %>%
+          select(cod_mun))$cod_mun
+
     }
   
   lista_instituicao
@@ -895,7 +915,7 @@ hidden(
 
 
 hidden(
-  div(id = "tipo_cons_mun", radioButtons("tipo_cons_mun", label ="Informe o filtro para municípios", choices = c("Escolher de uma lista", "Todos de uma ou mais UFs","Por Mesoregião", "Por faixa populacional - quartis", "Por faixa populacional - grupos ibge", "Por posição PIB per-capita", "Por posição PIB total", "Por principal atividade econômica" ), selected = "Escolher de uma lista"))
+  div(id = "tipo_cons_mun", radioButtons("tipo_cons_mun", label ="Informe o filtro para municípios", choices = c("Escolher de uma lista", "Todos de uma ou mais UFs","Por Mesoregião", "Por faixa populacional - quartis", "Por faixa populacional - grupos ibge", "Por posição PIB per-capita", "Por posição PIB total", "Por principal atividade econômica", "Por agrupamento econômico" ), selected = "Escolher de uma lista"))
   
          )
 
@@ -918,6 +938,10 @@ hidden(
 
 hidden(
          div(id = "mun_atv_eco", checkboxGroupInput("mun_atv_eco", label ="Selecione uma ou mais atividades econômicas", choices = get_lista_atividades(), selected = get_lista_atividades()[1])))
+
+
+hidden(
+         div(id = "mun_grp_eco", selectInput("mun_grp_eco", label ="Selecione um município do agrupamento econômico", choices = municipios_IBGE$nome_municipio, selected = "São Paulo")))
 
 
 hidden(
@@ -1204,7 +1228,8 @@ renderDataTable({
                   mun_meso = input$mun_meso,
                   mun_pib_pc = input$mun_pib_pc,
                   mun_pib_total = input$mun_pib_total,
-                  mun_atv_eco = input$mun_atv_eco
+                  mun_atv_eco = input$mun_atv_eco,
+                  mun_grp_eco = input$mun_grp_eco
                   )
   
   script<- generate_script(id_opcao)
@@ -1275,7 +1300,8 @@ renderPlot({
                   mun_meso = input$mun_meso,
                   mun_pib_pc = input$mun_pib_pc,
                   mun_pib_total = input$mun_pib_total,
-                  mun_atv_eco = input$mun_atv_eco
+                  mun_atv_eco = input$mun_atv_eco,
+                  mun_grp_eco = input$mun_grp_eco
     )
     
     
@@ -1327,7 +1353,8 @@ renderDataTable({
                     mun_meso = input$mun_meso,
                   mun_pib_pc = input$mun_pib_pc,
                   mun_pib_total=  input$mun_pib_total,
-                  mun_atv_eco = input$mun_atv_eco
+                  mun_atv_eco = input$mun_atv_eco,
+                  mun_grp_eco = input$mun_grp_eco
     )
     
     raw_data<<- generate_dt(id_opcao)
