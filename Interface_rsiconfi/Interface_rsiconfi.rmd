@@ -7,9 +7,10 @@ runtime: shiny
 ---
 
 ```{r setup, include=FALSE}
+
 library(flexdashboard)
-library(shiny)
 library(rsiconfi)
+library(shiny)
 library(networkD3)
 library(ggplot2)
 library(viridis)
