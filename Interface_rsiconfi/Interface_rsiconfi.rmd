@@ -266,7 +266,7 @@ get_lista_instituicao<- function(opcao){
         (municipios_IBGE%>%   
            filter(uf %in% opcao$mun_uf) %>%   
            distinct(cod_uf))$cod_uf
-      
+      print("opcao")
       print(opcao)
       lista_instituicao <- cod_uf
       
@@ -334,6 +334,8 @@ set_next_state<- function(current_state,a_button){
   
   
   
+  
+  print("inçio next state")
   #hide the element associated with the current state
   element<-
     (state_element %>%
@@ -341,12 +343,10 @@ set_next_state<- function(current_state,a_button){
     select(element))$element
   
   
+  print("passou no hide element")
+  shinyjs::hide(element)
   
-  hide(element)
-  
-  
-  
-  
+
   
   #identify the next state
   
@@ -432,7 +432,11 @@ set_next_state<- function(current_state,a_button){
     for (i in 1:NROW(promise_state)){
       
       condition<- eval(parse(text=promise_state$condition[i]))
+      print("condition")
       print(condition)
+      
+      print("text_condition")
+      print(promise_state$condition[i])
       
       if (condition){break()}
       
@@ -451,30 +455,183 @@ set_next_state<- function(current_state,a_button){
 
   updateTextInput(session = session, inputId = "state", value = next_state_f)
   
-  show(element)
+  print("element")
+  print(element)
+  
+  
+  print("button_a")
+  print(button_a)
+  print("passou no hide e shinyjs::show")
+  shinyjs::show(element)
+  
   
   if(button_a==1){
-    show("anterior")
+    shinyjs::show("anterior")
   } else{
-    hide("anterior")
+    shinyjs::hide("anterior")
   }
   
   if (button_p==1){
-    show("proximo")
+    shinyjs::show("proximo")
   } else{
-    hide("proximo")
+    shinyjs::hide("proximo")
   }
     
   
   
   if (button_f==1){
-    show("finalizar")
+    shinyjs::show("finalizar")
   } else{
-    hide("finalizar")
+    shinyjs::hide("finalizar")
   }
   
 
 
+}
+
+execute_SQL <- function(a_demo, a_anexo, rotulo_eixo_x, rotulo_eixo_y, opcao, filtro_opcional=""){
+  
+  library( ROracle)
+  drv <- dbDriver("Oracle")
+  user<- "USR_GTCEAD" 
+  senha<-"67285133" 
+  con1 <- dbConnect(drv, user , senha, "STN_DATALAKE.WORLD" )
+  
+#       consulta <- dbSendQuery(con1, 
+#           "
+#           select * 
+#           from PRD_SICONFI.XBRL_FATONUMERICO 
+#           where
+# CO_TIPO_DEMONSTRATIVO='QDCC' and 
+# NO_ANEXO = 'DCA-Anexo I-E' and
+# AN_EXERCICIO in (2017,2018) and
+# sg_ENTE in ('SP', 'MG','BA') and
+# NO_LABEL_EIXO_Y in('01 - Legislativa', '10 - Saúde', '12 - Educação') and
+# NO_LABEL_EIXO_X	in('Despesas Liquidadas')
+          # 
+          # 
+          # 
+          # ")
+  #ID_ENTE
+
+  
+  cons_colunas<- "AN_EXERCICIO, CO_ESFERA, CO_PODER, ID_ENTE, NO_ENTE, SG_ENTE, NO_LABEL_EIXO_X, NO_LABEL_EIXO_Y, VALUE"
+  
+  cons_tabela<- "PRD_SICONFI.XBRL_FATONUMERICO"
+  
+  
+  
+  
+
+  
+  #filtros obrigatõrios
+  
+  lista_ano<- opcao$ano[1]
+  
+  
+  for (ano in opcao$ano[-1]){
+    lista_ano<- paste(lista_ano,ano,sep = ",")
+  }
+  
+
+  opcao_uf <- (opcao$tipo_cons_mun=="Todos de uma ou mais UFs" & opcao$escopo == "Municípios")
+  
+  if(opcao_uf){
+    lista_instituicao_sel<- opcao$mun_uf
+
+  } else{
+    lista_instituicao_sel <- get_lista_instituicao(opcao)
+    
+  }
+  
+  
+  rept<- (NROW(lista_instituicao_sel)%/%1000)
+  print("rept")
+  print(rept)
+  
+  ini<-1
+  
+  df_consulta<- map_dfr(0:rept, function(arg_i){
+    
+    ini<-1+arg_i*1000
+    fim<- ifelse((arg_i+1)*1000>NROW(lista_instituicao_sel),NROW(lista_instituicao_sel),(arg_i+1)*1000)
+    print("ini")
+    print(ini)
+    print("fim")
+    print(fim)
+    
+    lista_instituicao <- lista_instituicao_sel[ini:fim]
+    print( "tamanho da lista")
+    print(NROW(lista_instituicao))
+    
+    lista_instituicao_script<- paste0("'",lista_instituicao[1], "'")
+    for (instituicao in lista_instituicao[-1]){
+      lista_instituicao_script<- paste0(lista_instituicao_script,",","'", instituicao, "'")
+    }
+    
+    
+    
+    filtro_obrigatorio<-
+      paste0( 
+        " CO_TIPO_DEMONSTRATIVO='", 
+        a_demo,
+        "'",
+        " and ",
+        "NO_ANEXO= '",
+        
+        a_anexo,
+        "'",
+        " and ",
+        "AN_EXERCICIO in (",
+        lista_ano,
+        ") and ",
+        ifelse(opcao_uf,"CO_ESFERA = 'M' and SG_ENTE in(","ID_ENTE in(" ),
+        lista_instituicao_script,
+        ")"
+        
+      )
+    
+    
+    consulta<-
+      paste(
+        "select",
+        cons_colunas,
+        "from",
+        cons_tabela,
+        "where",
+        filtro_obrigatorio,
+        ifelse(filtro_opcional != "", "and",""),
+        filtro_opcional,
+        sep = " "
+      )
+    print("consulta")
+    #print(consulta)
+    res_consulta<- dbSendQuery(con1, consulta)
+    df_result<- dbFetch(res_consulta)
+    
+    dbClearResult(res_consulta)
+    
+    df_result
+    
+    
+    
+  })
+  
+  
+  #dbClearResult(rs)
+#dbDisconnect(con)
+
+  
+  dbDisconnect(con1)
+  
+  names(df_consulta)[7:8]<- c(rotulo_eixo_x, rotulo_eixo_y)
+    
+  
+  df_consulta
+
+  
+  
+  
 }
 
 generate_graph<- function(opcao){
@@ -693,42 +850,77 @@ generate_graph<- function(opcao){
 
 generate_dt <- function(opcao){
   
-  lista_instituicao <- get_lista_instituicao(opcao)
-  
-  opcao_uf<- (opcao$tipo_cons_mun=="Todos de uma ou mais UFs" & opcao$escopo == "Municípios")
-  
+  # lista_instituicao <- get_lista_instituicao(opcao)
+  # opcao_uf<- (opcao$tipo_cons_mun=="Todos de uma ou mais UFs" & opcao$escopo == "Municípios")
+  # 
+  # if (opcao$topico ==1){
+  #   
+  #   if (opcao_uf){
+  #     df_rec <- rsiconfi::get_dca_mun_state(opcao$ano,"I-C",lista_instituicao)
+  #     
+  #   } else{
+  #     df_rec <- rsiconfi::get_dca(opcao$ano,"I-C",lista_instituicao)
+  #     
+  #   }
+  #   
+  #   return(df_rec)
+  # }
+
+
+  filtro_complementar<- ""
+
   if (opcao$topico ==1){
     
-    if (opcao_uf){
-      df_rec <- rsiconfi::get_dca_mun_state(opcao$ano,"I-C",lista_instituicao)
-      
-    } else{
-      df_rec <- rsiconfi::get_dca(opcao$ano,"I-C",lista_instituicao)
-      
-    }
+    anexo<- "DCA-Anexo I-C"
+    eixo_x<- "tipo_receita"
+    eixo_y<- "rubrica_receita"
     
-    return(df_rec)
+    filtro_complementar<- paste0(" NO_LABEL_EIXO_Y in(","'Total Receitas'",")")
+    
   }
   
   if (opcao$topico ==2){
-    if (opcao_uf){
-      df_desp <- rsiconfi::get_dca_mun_state(opcao$ano,"I-D",lista_instituicao)
-      
-    } else{
-      
-      df_desp <- rsiconfi::get_dca(opcao$ano,"I-D",lista_instituicao)
-      
-    }
     
-    
-    df_desp <-
-    df_desp%>%
-      filter(coluna %in% opcao$fase)
+    anexo<- "DCA-Anexo I-D"
+    eixo_x<- "tipo_despesa"
+    eixo_y<- "rubrica_despesa"
 
-    return(df_desp)
+    # if (opcao_uf){
+    #   df_desp <- rsiconfi::get_dca_mun_state(opcao$ano,"I-D",lista_instituicao)
+    #   
+    # } else{
+    #   
+    #   df_desp <- rsiconfi::get_dca(opcao$ano,"I-D",lista_instituicao)
+    #   
+    # }
+    
+  #    lista_instituicao_script<- paste0("'",lista_instituicao[1], "'")
+  # for (instituicao in lista_instituicao[-1]){
+  #   lista_instituicao_script<- paste0(lista_ano,",","'", ano, "'")
+  # }
+    
+    lista_fase<- paste0("'",opcao$fase[1], "'")
+  
+  
+    for (fase in opcao$fase[-1]){
+      lista_fase<- paste0(lista_fase,",","'", fase, "'")
+    }
+  
+
+    
+    filtro_complementar<- paste0(" NO_LABEL_EIXO_X in(",lista_fase,")")
+    
+    # df_desp <-
+    # df_desp%>%
+    #   filter(coluna %in% opcao$fase)
+    # 
+    # return(df_desp)
   }
   
   if (opcao$topico ==3){
+    lista_instituicao <- get_lista_instituicao(opcao)
+
+  opcao_uf<- (opcao$tipo_cons_mun=="Todos de uma ou mais UFs" & opcao$escopo == "Municípios")
     
     
     funcao<-
@@ -748,13 +940,27 @@ generate_dt <- function(opcao){
     
     #print(funcao)
     
-    df_func <- rsiconfi::get_dca(opcao$ano,"I-E",lista_instituicao,arg_cod_conta = funcao)
+    #df_func <- rsiconfi::get_dca(opcao$ano,"I-E",lista_instituicao,arg_cod_conta = funcao)
     df_func <-
     df_func%>%
       filter(coluna %in% opcao$fase)
+    
+    print("df_func")
+    print(df_func)
+    
+    
 
     return(df_func)
   }
+  
+  rel_siconfi<- 'QDCC'
+  
+  
+  raw_data<- execute_SQL(rel_siconfi, anexo,eixo_x, eixo_y, opcao, filtro_complementar)
+  
+  #saveRDS(raw_data, "raw_data.rds")
+  
+  return(raw_data)
   
   
 }
@@ -1205,67 +1411,67 @@ Column {.tabset .tabset-fade}
 ### Script que gera os dados
 
 ```{r}
-library(DT)
-
-
-renderDataTable({
-
-  id_topico<<-
-    (glossario_siconfi%>%
-       filter(topico==input$topico)%>%
-       select(id))$id[1]
-  
-  id_opcao<- list(topico = id_topico, 
-                  ano= input$ano, 
-                  fase = input$fase, 
-                  funcao= input$funcao, 
-                  escopo = input$escopo,
-                  uf = input$uf,
-                  tipo_cons_mun = input$tipo_cons_mun,
-                  municipio = input$municipio,
-                  mun_uf = input$mun_uf,
-                  mun_pop = input$mun_pop,
-                  mun_pop_faixa = input$mun_pop_faixa,
-                  mun_meso = input$mun_meso,
-                  mun_pib_pc = input$mun_pib_pc,
-                  mun_pib_total = input$mun_pib_total,
-                  mun_atv_eco = input$mun_atv_eco,
-                  mun_grp_eco = input$mun_grp_eco
-                  )
-  
-  script<- generate_script(id_opcao)
-  
-  print("input$fl_grafico")
-  print(input$fl_grafico)
-  
-  # updateTextInput(session, "fl_grafico", value = 1)
-  # show_graph<<-TRUE
-  # 
-  # updateTextInput(session, "fl_dado", value = 1)
-  # show_data<<-TRUE
-  
-  
-  DT::datatable(
-    script,
-    class = "",
-    rownames = FALSE,
-    fillContainer = TRUE,
-    selection = c("none"),
-    extensions = 'Buttons', options = list(
-       ordering=FALSE,
-       paging=FALSE,
-       searching= FALSE,
-       info = FALSE,
-       pageLength = NROW(script),
-       dom = 'Bfrtip',
-       buttons = c('copy')
-    )
-  )%>%
-    formatStyle( columns = "script",backgroundColor = '#f5f5f5')
-  
-  
-})
-
+# library(DT)
+# 
+# 
+# renderDataTable({
+# 
+#   id_topico<<-
+#     (glossario_siconfi%>%
+#        filter(topico==input$topico)%>%
+#        select(id))$id[1]
+#   
+#   id_opcao<- list(topico = id_topico, 
+#                   ano= input$ano, 
+#                   fase = input$fase, 
+#                   funcao= input$funcao, 
+#                   escopo = input$escopo,
+#                   uf = input$uf,
+#                   tipo_cons_mun = input$tipo_cons_mun,
+#                   municipio = input$municipio,
+#                   mun_uf = input$mun_uf,
+#                   mun_pop = input$mun_pop,
+#                   mun_pop_faixa = input$mun_pop_faixa,
+#                   mun_meso = input$mun_meso,
+#                   mun_pib_pc = input$mun_pib_pc,
+#                   mun_pib_total = input$mun_pib_total,
+#                   mun_atv_eco = input$mun_atv_eco,
+#                   mun_grp_eco = input$mun_grp_eco
+#                   )
+#   
+#   script<- generate_script(id_opcao)
+#   
+#   print("input$fl_grafico")
+#   print(input$fl_grafico)
+#   
+#   # updateTextInput(session, "fl_grafico", value = 1)
+#   # show_graph<<-TRUE
+#   # 
+#   # updateTextInput(session, "fl_dado", value = 1)
+#   # show_data<<-TRUE
+#   
+#   
+#   DT::datatable(
+#     script,
+#     class = "",
+#     rownames = FALSE,
+#     fillContainer = TRUE,
+#     selection = c("none"),
+#     extensions = 'Buttons', options = list(
+#        ordering=FALSE,
+#        paging=FALSE,
+#        searching= FALSE,
+#        info = FALSE,
+#        pageLength = NROW(script),
+#        dom = 'Bfrtip',
+#        buttons = c('copy')
+#     )
+#   )%>%
+#     formatStyle( columns = "script",backgroundColor = '#f5f5f5')
+#   
+#   
+# })
+# 
 
 
 ```
@@ -1276,49 +1482,49 @@ renderDataTable({
 
 ```{r}
 
-
-renderPlot({
-  print("show_graph")
-  print(show_graph)
-  
-  if (input$fl_grafico == 1 && show_graph){
-    id_topico<-
-      (glossario_siconfi%>%
-         filter(topico==input$topico)%>%
-         select(id))$id[1]
-    
-    id_opcao<- list(topico = id_topico, 
-                    ano= input$ano, 
-                    fase = input$fase, 
-                    funcao= input$funcao, 
-                    escopo = input$escopo,
-                    uf = input$uf,
-                    tipo_cons_mun = input$tipo_cons_mun,
-                    municipio = input$municipio,
-                    mun_uf = input$mun_uf,
-                    mun_pop = input$mun_pop,
-                    mun_pop_faixa = input$mun_pop_faixa,
-                  mun_meso = input$mun_meso,
-                  mun_pib_pc = input$mun_pib_pc,
-                  mun_pib_total = input$mun_pib_total,
-                  mun_atv_eco = input$mun_atv_eco,
-                  mun_grp_eco = input$mun_grp_eco
-    )
-    
-    
-    
-    graph<<-generate_graph(id_opcao)
-    
-    
-    
-    graph
-    
-    
-  }
-  
-  
-  
-})
+# 
+# renderPlot({
+#   print("show_graph")
+#   print(show_graph)
+#   
+#   if (input$fl_grafico == 1 && show_graph){
+#     id_topico<-
+#       (glossario_siconfi%>%
+#          filter(topico==input$topico)%>%
+#          select(id))$id[1]
+#     
+#     id_opcao<- list(topico = id_topico, 
+#                     ano= input$ano, 
+#                     fase = input$fase, 
+#                     funcao= input$funcao, 
+#                     escopo = input$escopo,
+#                     uf = input$uf,
+#                     tipo_cons_mun = input$tipo_cons_mun,
+#                     municipio = input$municipio,
+#                     mun_uf = input$mun_uf,
+#                     mun_pop = input$mun_pop,
+#                     mun_pop_faixa = input$mun_pop_faixa,
+#                   mun_meso = input$mun_meso,
+#                   mun_pib_pc = input$mun_pib_pc,
+#                   mun_pib_total = input$mun_pib_total,
+#                   mun_atv_eco = input$mun_atv_eco,
+#                   mun_grp_eco = input$mun_grp_eco
+#     )
+#     
+#     
+#     
+#     graph<<-generate_graph(id_opcao)
+#     
+#     
+#     
+#     graph
+#     
+#     
+#   }
+#   
+#   
+#   
+# })
 
 
 ```
@@ -1329,13 +1535,13 @@ renderPlot({
 library(DT)
 
 
-renderDataTable({
+renderDataTable(server= FALSE, {
   
   
   
   if (input$fl_dado == 1 && show_data){
     
-    id_topico<<-
+    id_topico<-
       (glossario_siconfi%>%
          filter(topico==input$topico)%>%
          select(id))$id[1]
@@ -1358,7 +1564,9 @@ renderDataTable({
                   mun_grp_eco = input$mun_grp_eco
     )
     
-    raw_data<<- generate_dt(id_opcao)
+    raw_data<- generate_dt(id_opcao)
+
+    
     
     
     
@@ -1367,9 +1575,9 @@ renderDataTable({
       rownames = FALSE,
       fillContainer = TRUE,
       selection = c("none"),
-      
+
       extensions = 'Buttons', options = list(
-        pageLength = NROW(raw_data),
+        pageLength = 100,
         dom = 'Bfrtip',
         buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
       )
